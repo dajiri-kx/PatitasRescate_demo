@@ -1,0 +1,107 @@
+async function loadComponent(elementId, url) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    try {
+        const res = await fetch(url);
+        el.innerHTML = await res.text();
+    } catch (e) {
+        console.error('Error cargando componente:', url, e);
+    }
+}
+
+function renderHeader() {
+    const loggedIn = Auth.isLoggedIn();
+    const nombre = Auth.getNombre();
+    const fb = CONFIG.FRONTEND_BASE;
+
+    const authBlockMobile = loggedIn
+        ? `<div class="dropdown text-end">
+               <button class="btn btn-outline-light dropdown-toggle" type="button" id="userDropdownMobile" data-bs-toggle="dropdown" aria-expanded="false">
+                   ${escapeHtml(nombre)}
+               </button>
+               <ul class="dropdown-menu dropdown-menu-end" style="background-color:#ff8c00;">
+                   <li><a class="dropdown-item text-white" href="${fb}/dashboard/">Dashboard</a></li>
+                   <li><hr class="dropdown-divider"></li>
+                   <li><a class="dropdown-item text-white" href="#" onclick="doLogout()">Cerrar Sesión</a></li>
+               </ul>
+           </div>`
+        : `<a href="${fb}/auth/login/" class="btn btn-outline-light">Iniciar sesión</a>
+           <a href="${fb}/auth/register/" class="btn btn-light ms-2" style="color:#ff6b00;">Registrarse</a>`;
+
+    const authBlockDesktop = loggedIn
+        ? `<div class="dropdown text-end">
+               <button class="btn btn-outline-light dropdown-toggle" type="button" id="userDropdownDesktop" data-bs-toggle="dropdown" aria-expanded="false">
+                   ${escapeHtml(nombre)}
+               </button>
+               <ul class="dropdown-menu dropdown-menu-end" style="background-color:#ff8c00;">
+                   <li><a class="dropdown-item text-white" href="${fb}/dashboard/">Dashboard</a></li>
+                   <li><hr class="dropdown-divider"></li>
+                   <li><a class="dropdown-item text-white" href="#" onclick="doLogout()">Cerrar Sesión</a></li>
+               </ul>
+           </div>`
+        : `<a href="${fb}/auth/login/" class="btn btn-outline-light">Iniciar sesión</a>
+           <a href="${fb}/auth/register/" class="btn btn-light ms-2" style="color:#ff6b00;">Registrarse</a>`;
+
+    document.getElementById('app-header').innerHTML = `
+    <nav class="navbar navbar-expand-lg navbar-dark" style="background:linear-gradient(135deg,#ff8c00,#ff6b00);box-shadow:0 2px 10px rgba(0,0,0,0.1);">
+        <div class="container d-flex align-items-center">
+            <div>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarsMain" aria-controls="navbarsMain" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <a class="navbar-brand ms-2 d-flex align-items-center" href="${fb}/home/">
+                    <i class="bi bi-heart-pulse me-2"></i>
+                    <span class="fw-bold">Patitas al rescate</span>
+                </a>
+            </div>
+            <div class="col-md-3 text-end d-lg-none">${authBlockMobile}</div>
+            <div class="collapse navbar-collapse" id="navbarsMain">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link px-3 py-2 rounded" href="${fb}/home/">Home</a></li>
+                    <li class="nav-item"><a class="nav-link px-3 py-2 rounded" href="${fb}/servicios/">Servicios</a></li>
+                    <li class="nav-item"><a class="nav-link px-3 py-2 rounded" href="${fb}/ubicacion/">Ubicación</a></li>
+                    <li class="nav-item"><a class="nav-link px-3 py-2 rounded" href="${fb}/contactenos/">Contáctenos</a></li>
+                </ul>
+                <div class="col-md-3 text-end d-none d-lg-block">${authBlockDesktop}</div>
+            </div>
+        </div>
+    </nav>`;
+}
+
+function renderFooter() {
+    document.getElementById('app-footer').innerHTML = `
+    <div class="container">
+        <footer class="py-2 py-md-5">
+            <div class="d-flex flex-column flex-sm-row justify-content-between pt-2 border-top">
+                <p>&copy; 2025 Patitas al rescate. Todos los derechos reservados.</p>
+                <ul class="list-unstyled d-flex">
+                    <li class="ms-3"><a class="link-body-emphasis" href="#"><i class="bi bi-twitter"></i></a></li>
+                    <li class="ms-3"><a class="link-body-emphasis" href="#"><i class="bi bi-instagram"></i></a></li>
+                    <li class="ms-3"><a class="link-body-emphasis" href="#"><i class="bi bi-facebook"></i></a></li>
+                    <li class="ms-3"><a class="link-body-emphasis" href="#"><i class="bi bi-tiktok"></i></a></li>
+                </ul>
+            </div>
+        </footer>
+    </div>`;
+}
+
+async function doLogout() {
+    try {
+        await apiPost('/Auth/Logout/logoutAction.php', {});
+    } catch (_) { /* ignore */ }
+    Auth.clear();
+    window.location.href = nav('/auth/login/');
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function initLayout() {
+    renderHeader();
+    renderFooter();
+}
+
+document.addEventListener('DOMContentLoaded', initLayout);
