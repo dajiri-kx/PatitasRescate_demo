@@ -1,0 +1,5 @@
+Error:
+- Error de conexión: could not find driver:
+
+Solucion:
+- Abre el archivo php.zip copie y substituya el contenido en su carpeta de PHP.
