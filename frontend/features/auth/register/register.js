@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', function () {
         };
 
         try {
-            await apiPost('/Auth/Register/registroAction.php', body);
+            await apiPost('/auth/register', body);
             window.location.href = nav('/auth/login/') + '?registered=1';
         } catch (err) {
             alertBox.innerHTML = `<div class="alert alert-danger">${escapeHtml(err.message)}</div>`;

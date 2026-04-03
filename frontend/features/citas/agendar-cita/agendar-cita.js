@@ -18,9 +18,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load form data in parallel
     try {
         const [mascotasRes, serviciosRes, vetsRes] = await Promise.all([
-            apiGet('/Mascotas/ObtenerNombresMascotas/obtenerNombresMascotasAction.php'),
-            apiGet('/Citas/ObtenerServicios/obtenerServiciosAction.php'),
-            apiGet('/Citas/ObtenerVeterinarios/obtenerVeterinariosAction.php'),
+            apiGet('/mascotas/nombres'),
+            apiGet('/citas/servicios'),
+            apiGet('/citas/veterinarios'),
         ]);
 
         // Populate mascotas
@@ -67,7 +67,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const serviciosChecked = Array.from(document.querySelectorAll('input[name="servicio"]:checked')).map(c => c.value);
 
         try {
-            const res = await apiPost('/Citas/AgendarCita/agendarCitaAction.php', {
+            const res = await apiPost('/citas/agendar', {
                 id_mascota: document.getElementById('id_mascota').value,
                 fecha: document.getElementById('fecha').value,
                 hora: document.getElementById('hora').value,

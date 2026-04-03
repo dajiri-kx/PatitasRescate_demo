@@ -57,7 +57,7 @@
             btn.textContent = 'Ingresando...';
 
             try {
-                const res = await apiPost('/Auth/Login/loginAction.php', {
+                const res = await apiPost('/auth/login', {
                     username: document.getElementById('username').value,
                     password: document.getElementById('password').value,
                 });

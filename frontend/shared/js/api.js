@@ -1,5 +1,5 @@
 const CONFIG = {
-    API_BASE: '/backend/features',
+    API_BASE: '/api',
     FRONTEND_BASE: '/frontend/features',
 };
 

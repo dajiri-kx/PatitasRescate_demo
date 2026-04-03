@@ -21,9 +21,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Load data in parallel
     try {
         const [mascotasRes, citasRes, facturasRes] = await Promise.all([
-            apiGet('/Mascotas/ObtenerMascotas/obtenerMascotasAction.php'),
-            apiGet('/Citas/ObtenerCitas/obtenerCitasAction.php'),
-            apiGet('/Facturas/ObtenerFacturas/obtenerFacturasAction.php'),
+            apiGet('/mascotas'),
+            apiGet('/citas'),
+            apiGet('/facturas'),
         ]);
 
         renderMascotas(mascotasRes.data);

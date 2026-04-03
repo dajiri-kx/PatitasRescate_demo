@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('link-dashboard').href = nav('/dashboard/');
 
     try {
-        const res = await apiGet('/Citas/ObtenerCitasActivas/obtenerCitasActivasAction.php');
+        const res = await apiGet('/citas/activas');
         const select = document.getElementById('id_cita');
 
         if (!res.data || res.data.length === 0) {
@@ -32,7 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         btn.disabled = true;
 
         try {
-            const res = await apiPost('/Citas/CancelarCita/cancelarCitaAction.php', {
+            const res = await apiPost('/citas/cancelar', {
                 id_cita: document.getElementById('id_cita').value,
             });
             alertBox.innerHTML = `<div class="alert alert-success">${escapeHtml(res.message)}</div>`;

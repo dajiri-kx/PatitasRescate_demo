@@ -57,7 +57,6 @@ function renderHeader() {
             <div class="col-md-3 text-end d-lg-none">${authBlockMobile}</div>
             <div class="collapse navbar-collapse" id="navbarsMain">
                 <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    <li class="nav-item"><a class="nav-link px-3 py-2 rounded" href="${fb}/home/">Home</a></li>
                     <li class="nav-item"><a class="nav-link px-3 py-2 rounded" href="${fb}/servicios/">Servicios</a></li>
                     <li class="nav-item"><a class="nav-link px-3 py-2 rounded" href="${fb}/ubicacion/">Ubicación</a></li>
                     <li class="nav-item"><a class="nav-link px-3 py-2 rounded" href="${fb}/contactenos/">Contáctenos</a></li>
@@ -87,7 +86,7 @@ function renderFooter() {
 
 async function doLogout() {
     try {
-        await apiPost('/Auth/Logout/logoutAction.php', {});
+        await apiPost('/auth/logout', {});
     } catch (_) { /* ignore */ }
     Auth.clear();
     window.location.href = nav('/auth/login/');

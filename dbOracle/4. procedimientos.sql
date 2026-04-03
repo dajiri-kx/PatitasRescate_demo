@@ -417,11 +417,12 @@ EXCEPTION
 END registrarCliente;
 /
 
--- Datos de prueba
+-- ADVERTENCIA: Bloque de prueba deshabilitado.
+-- La contraseña debe ser un hash bcrypt generado por la aplicación.
+/*
 DECLARE
-    v_ID_Cliente NUMBER; -- Variable para capturar el ID del cliente registrado
+    v_ID_Cliente NUMBER;
 BEGIN
-    -- Registrar un cliente
     registrarCliente(
         p_didentidad_cliente => '123456789',
         p_nombre => 'Fran',
@@ -429,24 +430,22 @@ BEGIN
         p_email => 'andrjs@outlook.com',
         p_telefono => '85075310',
         p_direccion => 'San José, Costa Rica',
-        p_contrasena => 'contrasena123',
-        p_ID_Cliente => v_ID_Cliente -- Capturar el ID del cliente registrado
+        p_contrasena => '<HASH_BCRYPT_AQUI>',
+        p_ID_Cliente => v_ID_Cliente
     );
-
-    -- Mostrar el ID del cliente registrado
-    DBMS_OUTPUT.PUT_LINE('Cliente registrado con éxito. ID del cliente: ' || v_ID_Cliente);
+    DBMS_OUTPUT.PUT_LINE('Cliente registrado. ID: ' || v_ID_Cliente);
 END;
 /
---24/04/2025
--- Datos de prueba
+*/
+-- Bloque de prueba agendarCita deshabilitado (depende de IDs específicos).
+/*
 DECLARE
-    v_ID_Cliente NUMBER := 41; -- Reemplaza con el ID del cliente
-    v_ID_Mascota NUMBER := 1; -- Reemplaza con el ID de la mascota
-    v_ID_Veterinario NUMBER := 1; -- Reemplaza con el ID del veterinario
-    v_Fecha_Cita DATE := TO_DATE('2025-04-30', 'YYYY-MM-DD'); -- Reemplaza con la fecha deseada
-    v_Servicios VARCHAR2(100) := '3,4'; -- Reemplaza con los IDs de los servicios separados por comas
+    v_ID_Cliente NUMBER := 41;
+    v_ID_Mascota NUMBER := 1;
+    v_ID_Veterinario NUMBER := 1;
+    v_Fecha_Cita DATE := TO_DATE('2025-04-30', 'YYYY-MM-DD');
+    v_Servicios VARCHAR2(100) := '3,4';
 BEGIN
-    -- Llamar al procedimiento para agendar la cita
     agendarCita(
         p_ID_Cliente => v_ID_Cliente,
         p_ID_Mascota => v_ID_Mascota,
@@ -454,26 +453,31 @@ BEGIN
         p_Fecha_Cita => v_Fecha_Cita,
         p_Servicios => v_Servicios
     );
-
     DBMS_OUTPUT.PUT_LINE('Cita agendada exitosamente.');
 END;
 /
-commit;
+COMMIT;
+*/
 
 SELECT object_name, status
 FROM user_objects
 WHERE object_name = 'AGENDARCITA';
 
+-- Consulta diagnóstica: citas por cliente
 SELECT c.ID_CITA, c.fecha_cita, c.estado, m.nombre AS mascota, v.nombre AS veterinario
 FROM citas_tablas.citas c
 JOIN usuarios_tablas.mascotas m ON c.ID_MASCOTA = m.ID_MASCOTA
 JOIN usuarios_tablas.veterinarios v ON c.id_veterinario = v.id_veterinario
-WHERE m.id_cliente = 41;
+WHERE m.id_cliente = :id_cliente;
 
-SELECT f.ID_FACTURA, f.TOTAL, f.FECHA_FACTURA, 
-       CASE 
+-- Consulta diagnóstica: facturas por cliente
+SELECT DISTINCT f.ID_FACTURA, f.TOTAL, f.FECHA_FACTURA,
+       CASE
            WHEN c.FECHA_CITA < SYSDATE THEN 'Pagada'
            ELSE 'Pendiente'
        END AS ESTADO
 FROM CITAS_TABLAS.FACTURAS f
-WHERE m.ID_CLIENTE = 41;
+JOIN CITAS_TABLAS.CITAS_SERVICIOS cs ON f.ID_FACTURA = cs.FACTURAS_ID_FACTURA
+JOIN CITAS_TABLAS.CITAS c ON cs.ID_CITA = c.ID_CITA
+JOIN USUARIOS_TABLAS.MASCOTAS m ON c.ID_MASCOTA = m.ID_MASCOTA
+WHERE m.ID_CLIENTE = :id_cliente;

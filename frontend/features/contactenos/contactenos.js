@@ -7,7 +7,7 @@ document.getElementById('contactForm').addEventListener('submit', async (e) => {
     btn.textContent = 'Enviando...';
 
     try {
-        await apiPost('/Contacto/EnviarContacto/contactoAction.php', {
+        await apiPost('/contacto', {
             nombre: document.getElementById('nombre').value,
             email: document.getElementById('email').value,
             telefono: document.getElementById('telefono').value,

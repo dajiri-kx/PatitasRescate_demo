@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.textContent = 'Registrando...';
 
         try {
-            const res = await apiPost('/Mascotas/AgregarMascota/agregarMascotaAction.php', {
+            const res = await apiPost('/mascotas/agregar', {
                 nombre: document.getElementById('nombre').value,
                 especie: document.getElementById('especie').value,
                 raza: document.getElementById('raza').value,
