@@ -1,80 +1,118 @@
 package auth
 
 import (
-"context"
-"database/sql"
+	"context"
+	"database/sql"
+	"errors"
 
-"golang.org/x/crypto/bcrypt"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthService struct {
-db *sql.DB
+	db *sql.DB
 }
 
 func NewAuthService(db *sql.DB) *AuthService {
-return &AuthService{db: db}
+	return &AuthService{db: db}
 }
 
 type ClienteData struct {
-IDCliente int64  `json:"id_cliente"`
-Nombre    string `json:"nombre"`
-Apellido  string `json:"apellido"`
-Correo    string `json:"correo"`
-Telefono  string `json:"telefono"`
+	IDCliente int64  `json:"id_cliente"`
+	Nombre    string `json:"nombre"`
+	Apellido  string `json:"apellido"`
+	Correo    string `json:"correo"`
+	Telefono  string `json:"telefono"`
 }
 
 func (s *AuthService) Login(ctx context.Context, correo, password string) (*ClienteData, error) {
-row := s.db.QueryRowContext(ctx,
-`SELECT c.ID_CLIENTE, c.NOMBRE, c.APELLIDO, c.TELEFONO, u.CONTRASENA
- FROM USUARIOS_TABLAS.USUARIOS u
- JOIN USUARIOS_TABLAS.CLIENTES c ON u.ID_CLIENTE = c.ID_CLIENTE
- WHERE u.CORREO = :correo`,
-sql.Named("correo", correo),
-)
+	row := s.db.QueryRowContext(ctx,
+		`SELECT c.ID_CLIENTE, c.NOMBRE, c.APELLIDO, c.TELEFONO, u.CONTRASENA
+		 FROM USUARIOS u
+		 JOIN CLIENTES c ON u.ID_CLIENTE = c.ID_CLIENTE
+		 WHERE u.CORREO = ?`,
+		correo,
+	)
 
-var idCliente int64
-var nombre, apellido, telefono, hash string
-if err := row.Scan(&idCliente, &nombre, &apellido, &telefono, &hash); err != nil {
-if err == sql.ErrNoRows {
-return nil, nil
-}
-return nil, err
-}
+	var idCliente int64
+	var nombre, apellido, telefono, hash string
+	if err := row.Scan(&idCliente, &nombre, &apellido, &telefono, &hash); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
 
-if bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
-return nil, nil
-}
+	if bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) != nil {
+		return nil, nil
+	}
 
-return &ClienteData{
-IDCliente: idCliente,
-Nombre:    nombre,
-Apellido:  apellido,
-Correo:    correo,
-Telefono:  telefono,
-}, nil
+	return &ClienteData{
+		IDCliente: idCliente,
+		Nombre:    nombre,
+		Apellido:  apellido,
+		Correo:    correo,
+		Telefono:  telefono,
+	}, nil
 }
 
 func (s *AuthService) Registrar(ctx context.Context, identificacion, nombre, apellido, correo, telefono, direccion, password string) (int64, error) {
-hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-if err != nil {
-return 0, err
-}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return 0, err
+	}
 
-var idCliente int64
-_, err = s.db.ExecContext(ctx,
-`BEGIN registrarCliente(:identificacion, :nombre, :apellido, :correo, :telefono, :direccion, :password, :idCliente); END;`,
-sql.Named("identificacion", identificacion),
-sql.Named("nombre", nombre),
-sql.Named("apellido", apellido),
-sql.Named("correo", correo),
-sql.Named("telefono", telefono),
-sql.Named("direccion", direccion),
-sql.Named("password", string(hash)),
-sql.Named("idCliente", sql.Out{Dest: &idCliente}),
-)
-if err != nil {
-return 0, err
-}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
 
-return idCliente, nil
+	// Verificar cédula duplicada
+	var count int
+	err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM CLIENTES WHERE DIDENTIDAD_CLIENTE = ?`, identificacion).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	if count > 0 {
+		return 0, errors.New("ORA-20010: La cédula o documento de identidad ya está registrada")
+	}
+
+	// Verificar correo duplicado
+	err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM USUARIOS WHERE CORREO = ?`, correo).Scan(&count)
+	if err != nil {
+		return 0, err
+	}
+	if count > 0 {
+		return 0, errors.New("ORA-20010: El correo electrónico ya está registrado")
+	}
+
+	// Insertar cliente
+	result, err := tx.ExecContext(ctx,
+		`INSERT INTO CLIENTES (DIDENTIDAD_CLIENTE, NOMBRE, APELLIDO, EMAIL, TELEFONO, DIRECCION, FECHA_REGISTRO)
+		 VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+		identificacion, nombre, apellido, correo, telefono, direccion,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	idCliente, err := result.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+
+	// Insertar usuario
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO USUARIOS (ID_CLIENTE, CORREO, CONTRASENA) VALUES (?, ?, ?)`,
+		idCliente, correo, string(hash),
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	if err = tx.Commit(); err != nil {
+		return 0, err
+	}
+
+	return idCliente, nil
 }

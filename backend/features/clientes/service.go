@@ -25,10 +25,10 @@ type Perfil struct {
 func (s *ClienteService) ObtenerPerfil(ctx context.Context, idCliente int64) (*Perfil, error) {
 	row := s.db.QueryRowContext(ctx,
 		`SELECT c.NOMBRE, c.APELLIDO, u.CORREO, c.TELEFONO, c.IDENTIFICACION, c.DIRECCION
-		 FROM USUARIOS_TABLAS.CLIENTES c
-		 JOIN USUARIOS_TABLAS.USUARIOS u ON c.ID_CLIENTE = u.ID_CLIENTE
-		 WHERE c.ID_CLIENTE = :id_cliente`,
-		sql.Named("id_cliente", idCliente),
+		 FROM CLIENTES c
+		 JOIN USUARIOS u ON c.ID_CLIENTE = u.ID_CLIENTE
+		 WHERE c.ID_CLIENTE = ?`,
+		idCliente,
 	)
 
 	var p Perfil
@@ -43,13 +43,10 @@ func (s *ClienteService) ObtenerPerfil(ctx context.Context, idCliente int64) (*P
 
 func (s *ClienteService) Actualizar(ctx context.Context, idCliente int64, nombre, apellido, telefono string) error {
 	_, err := s.db.ExecContext(ctx,
-		`UPDATE USUARIOS_TABLAS.CLIENTES
-		 SET NOMBRE = :nombre, APELLIDO = :apellido, TELEFONO = :telefono
-		 WHERE ID_CLIENTE = :id_cliente`,
-		sql.Named("nombre", nombre),
-		sql.Named("apellido", apellido),
-		sql.Named("telefono", telefono),
-		sql.Named("id_cliente", idCliente),
+		`UPDATE CLIENTES
+		 SET NOMBRE = ?, APELLIDO = ?, TELEFONO = ?
+		 WHERE ID_CLIENTE = ?`,
+		nombre, apellido, telefono, idCliente,
 	)
 	return err
 }

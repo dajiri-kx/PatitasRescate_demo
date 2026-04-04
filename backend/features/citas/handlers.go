@@ -133,7 +133,12 @@ func agendarHandler(svc *CitaService) http.HandlerFunc {
 		if err != nil {
 			errMsg := err.Error()
 			if strings.Contains(errMsg, "ORA-200") {
-				shared.JSONErr(w, 400, extractOracleMsg(errMsg))
+				// Extraer mensaje después del código
+				if idx := strings.Index(errMsg, ": "); idx != -1 {
+					shared.JSONErr(w, 400, errMsg[idx+2:])
+				} else {
+					shared.JSONErr(w, 400, errMsg)
+				}
 				return
 			}
 			log.Printf("Error agendar: %v", err)
@@ -179,18 +184,4 @@ func cancelarHandler(svc *CitaService) http.HandlerFunc {
 
 		shared.JSONMsg(w, "Cita cancelada exitosamente.")
 	}
-}
-
-func extractOracleMsg(errMsg string) string {
-	if idx := strings.Index(errMsg, "ORA-"); idx != -1 {
-		after := errMsg[idx:]
-		if colonIdx := strings.Index(after, ": "); colonIdx != -1 {
-			msg := after[colonIdx+2:]
-			if nlIdx := strings.IndexAny(msg, "\n\r"); nlIdx != -1 {
-				msg = msg[:nlIdx]
-			}
-			return strings.TrimSpace(msg)
-		}
-	}
-	return "Error en la operación."
 }
