@@ -1,3 +1,32 @@
+/*
+citas/service.go — Lógica de negocio para gestión de citas veterinarias.
+
+MODELO DE DATOS DE CITAS (relaciones entre tablas):
+CLIENTES (1) → (N) MASCOTAS → (N) CITAS ← (1) VETERINARIOS
+CITAS (N) ←→ (N) SERVICIOS   (vía tabla puente CITAS_SERVICIOS)
+CITAS_SERVICIOS → (1) FACTURAS (la factura agrupa los servicios de una cita)
+
+FLUJO DE DATOS — AGENDAR CITA (la operación más compleja del sistema):
+Frontend envía: {id_mascota, fecha, hora, servicio[], veterinario}
+→ handlers.go agendarHandler() une fecha+hora y servicios → llama svc.Agendar()
+→ Agendar() ejecuta TODO en una transacción:
+ 1. Parsear IDs de servicios (vienen como string "1,3,5")
+ 2. Validar: cliente existe, mascota existe, mascota es del cliente
+ 3. Validar: no hay cita activa ese día para esa mascota
+ 4. Validar: veterinario existe y está disponible en esa fecha/hora
+ 5. INSERT CITA → obtener ID_CITA
+ 6. Para cada servicio: validar, INSERT CITAS_SERVICIOS, descontar stock productos
+ 7. Calcular total = SUM(precios de servicios)
+ 8. INSERT FACTURA con el total → obtener ID_FACTURA
+ 9. UPDATE CITAS_SERVICIOS para vincular con la factura
+ 10. COMMIT
+
+→ Retorna ID_FACTURA al frontend (para redirigir a Stripe Checkout)
+
+CÓDIGOS ORA-200xx:
+Se usan como convención para errores de negocio (inspirados en Oracle PL/SQL).
+El handler detecta "ORA-200" en el mensaje y responde 400 en vez de 500.
+*/
 package citas
 
 import (
@@ -16,6 +45,8 @@ func NewCitaService(db *sql.DB) *CitaService {
 	return &CitaService{db: db}
 }
 
+// Cita es el struct para la lista de citas del cliente (vista mis-citas).
+// Incluye nombre de mascota y veterinario resueltos por JOINs.
 type Cita struct {
 	IDCita      int64  `json:"ID_CITA"`
 	FechaCita   string `json:"FECHA_CITA"`
@@ -24,17 +55,20 @@ type Cita struct {
 	Veterinario string `json:"VETERINARIO"`
 }
 
+// CitaActiva es un subset de Cita usado en el formulario de cancelar cita.
 type CitaActiva struct {
 	IDCita    int64  `json:"ID_CITA"`
 	FechaCita string `json:"FECHA_CITA"`
 	Mascota   string `json:"MASCOTA"`
 }
 
+// Veterinario para el dropdown del formulario de agendar cita.
 type Veterinario struct {
 	IDVeterinario int64  `json:"ID_VETERINARIO"`
 	Nombre        string `json:"NOMBRE"`
 }
 
+// Servicio para las cards de selección en el formulario de agendar cita.
 type Servicio struct {
 	IDServicio     int64   `json:"ID_SERVICIO"`
 	NombreServicio string  `json:"NOMBRE_SERVICIO"`
@@ -43,6 +77,9 @@ type Servicio struct {
 	Categoria      string  `json:"CATEGORIA"`
 }
 
+// ObtenerPorCliente devuelve TODAS las citas de un cliente (activas, completadas, canceladas).
+// Se accede a las citas del cliente a través de la mascota: CITAS → MASCOTAS → ID_CLIENTE.
+// Usado en: GET /api/citas (página "Mis Citas" del cliente).
 func (s *CitaService) ObtenerPorCliente(ctx context.Context, idCliente int64) ([]Cita, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT C.ID_CITA, DATE_FORMAT(C.FECHA_CITA, '%Y-%m-%d %H:%i') AS FECHA_CITA,
@@ -70,6 +107,7 @@ func (s *CitaService) ObtenerPorCliente(ctx context.Context, idCliente int64) ([
 	return list, rows.Err()
 }
 
+// ObtenerActivas retorna solo citas con Estado='Activa' para el formulario de cancelar.
 func (s *CitaService) ObtenerActivas(ctx context.Context, idCliente int64) ([]CitaActiva, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT C.ID_CITA, DATE_FORMAT(C.FECHA_CITA, '%Y-%m-%d %H:%i') AS FECHA_CITA, M.NOMBRE AS MASCOTA
@@ -95,6 +133,7 @@ func (s *CitaService) ObtenerActivas(ctx context.Context, idCliente int64) ([]Ci
 	return list, rows.Err()
 }
 
+// ObtenerVeterinarios devuelve todos los veterinarios para el dropdown de agendar cita.
 func (s *CitaService) ObtenerVeterinarios(ctx context.Context) ([]Veterinario, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT ID_VETERINARIO, NOMBRE FROM VETERINARIOS ORDER BY NOMBRE`)
@@ -114,6 +153,11 @@ func (s *CitaService) ObtenerVeterinarios(ctx context.Context) ([]Veterinario, e
 	return list, rows.Err()
 }
 
+// ObtenerServicios devuelve servicios, opcionalmente filtrados por categoría.
+// Si categoria == "" → devuelve todos ordenados por categoría y nombre.
+// Si categoria != "" → devuelve solo los de esa categoría.
+// El frontend primero muestra un dropdown de categorías, y al seleccionar una,
+// recarga los servicios filtrados con ?categoria=X.
 func (s *CitaService) ObtenerServicios(ctx context.Context, categoria string) ([]Servicio, error) {
 	var rows *sql.Rows
 	var err error
@@ -142,8 +186,19 @@ func (s *CitaService) ObtenerServicios(ctx context.Context, categoria string) ([
 	return list, rows.Err()
 }
 
+// Agendar es la operación más compleja del sistema. Crea una cita completa en
+// una transacción atómica: valida todo → crea cita → registra servicios →
+// descuenta stock de productos → genera factura → vincula todo.
+//
+// PARÁMETROS (vienen del frontend vía handlers.go):
+//   - idCliente: de la sesión (cookie), no del body — seguridad
+//   - idMascota, idVeterinario: del formulario
+//   - fechaCita: "2025-06-15 10:00" (fecha + hora concatenadas por el handler)
+//   - servicios: "1,3,5" (IDs separados por coma, concatenados por el handler)
+//
+// RETORNA: idFactura — el frontend lo usa para crear la sesión de Stripe.
 func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeterinario int64, fechaCita, servicios string) (int64, error) {
-	// Parsear lista de servicios
+	// === PASO 1: Parsear la lista de servicios (string "1,3,5" → []int64) ===
 	parts := strings.Split(servicios, ",")
 	var svcIDs []int64
 	for _, p := range parts {
@@ -161,14 +216,18 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 		return 0, errors.New("ORA-20007: Debe seleccionar al menos un servicio")
 	}
 
+	// === PASO 2: Abrir transacción — todo o nada ===
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
-	defer tx.Rollback()
+	defer tx.Rollback() // Se ejecuta si hay error; no-op si ya se hizo Commit
 
-	// Validar cliente
+	// === PASO 3: Cadena de validaciones (ORA-20001 a ORA-20006) ===
+	// Cada validación verifica existencia/pertenencia antes de crear datos.
 	var count int
+
+	// 3a. ¿El cliente existe en la BD?
 	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM CLIENTES WHERE ID_CLIENTE = ?`, idCliente).Scan(&count); err != nil {
 		return 0, err
 	}
@@ -176,7 +235,7 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 		return 0, errors.New("ORA-20001: El cliente no existe")
 	}
 
-	// Validar mascota
+	// 3b. ¿La mascota existe?
 	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM MASCOTAS WHERE ID_MASCOTA = ?`, idMascota).Scan(&count); err != nil {
 		return 0, err
 	}
@@ -184,7 +243,7 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 		return 0, errors.New("ORA-20002: La mascota no existe")
 	}
 
-	// Validar mascota pertenece al cliente
+	// 3c. ¿La mascota pertenece a ESTE cliente? (seguridad: evita agendar mascota ajena)
 	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM MASCOTAS WHERE ID_MASCOTA = ? AND ID_CLIENTE = ?`, idMascota, idCliente).Scan(&count); err != nil {
 		return 0, err
 	}
@@ -192,7 +251,7 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 		return 0, errors.New("ORA-20003: La mascota no pertenece al cliente")
 	}
 
-	// Validar que la mascota no tenga cita activa el mismo día
+	// 3d. ¿La mascota ya tiene cita activa el mismo día?
 	if err = tx.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM CITAS
 		 WHERE ID_MASCOTA = ? AND DATE(FECHA_CITA) = DATE(STR_TO_DATE(?, '%Y-%m-%d %H:%i')) AND ESTADO = 'Activa'`,
@@ -203,7 +262,7 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 		return 0, errors.New("ORA-20004: La mascota ya tiene una cita activa a la misma hora")
 	}
 
-	// Validar veterinario
+	// 3e. ¿El veterinario existe?
 	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM VETERINARIOS WHERE ID_VETERINARIO = ?`, idVeterinario).Scan(&count); err != nil {
 		return 0, err
 	}
@@ -211,7 +270,7 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 		return 0, errors.New("ORA-20005: El veterinario no existe")
 	}
 
-	// Validar disponibilidad del veterinario
+	// 3f. ¿El veterinario está libre en esa fecha/hora?
 	if err = tx.QueryRowContext(ctx,
 		`SELECT COUNT(*) FROM CITAS
 		 WHERE ID_VETERINARIO = ? AND FECHA_CITA = STR_TO_DATE(?, '%Y-%m-%d %H:%i') AND ESTADO = 'Activa'`,
@@ -222,7 +281,7 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 		return 0, errors.New("ORA-20006: El veterinario no está disponible en esa fecha y hora")
 	}
 
-	// Crear la cita
+	// === PASO 4: Crear la cita (estado inicial = 'Activa') ===
 	result, err := tx.ExecContext(ctx,
 		`INSERT INTO CITAS (ID_MASCOTA, ID_VETERINARIO, FECHA_CITA, ESTADO)
 		 VALUES (?, ?, STR_TO_DATE(?, '%Y-%m-%d %H:%i'), 'Activa')`,
@@ -235,9 +294,9 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 		return 0, err
 	}
 
-	// Registrar servicios y actualizar stock
+	// === PASO 5: Registrar cada servicio y descontar stock de productos ===
 	for _, svcID := range svcIDs {
-		// Verificar servicio
+		// 5a. Verificar que el servicio existe
 		if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM SERVICIOS WHERE ID_SERVICIO = ?`, svcID).Scan(&count); err != nil {
 			return 0, err
 		}
@@ -245,7 +304,7 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 			return 0, errors.New("ORA-20007: El servicio solicitado no es válido")
 		}
 
-		// Insertar cita-servicio
+		// 5b. Crear relación CITAS_SERVICIOS (tabla puente N:N)
 		_, err = tx.ExecContext(ctx,
 			`INSERT INTO CITAS_SERVICIOS (ID_CITA, ID_SERVICIO) VALUES (?, ?)`,
 			idCita, svcID)
@@ -253,7 +312,9 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 			return 0, err
 		}
 
-		// Verificar y actualizar stock de productos asociados
+		// 5c. Verificar y descontar stock de productos asociados al servicio.
+		// SERVICIOS_PRODUCTOS indica qué productos y cuántas unidades consume cada servicio.
+		// Ejemplo: "Baño completo" consume 2 unidades de "Shampoo antipulgas".
 		prodRows, err := tx.QueryContext(ctx,
 			`SELECT sp.ID_PRODUCTO, sp.UNIDADES_PRODUCTO, p.STOCK
 			 FROM SERVICIOS_PRODUCTOS sp
@@ -291,7 +352,7 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 		}
 	}
 
-	// Calcular total y crear factura
+	// === PASO 6: Calcular total de la cita (suma de precios de todos los servicios) ===
 	var total float64
 	if err = tx.QueryRowContext(ctx,
 		`SELECT IFNULL(SUM(s.PRECIO), 0)
@@ -301,6 +362,7 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 		return 0, err
 	}
 
+	// === PASO 7: Crear factura con el total calculado ===
 	factResult, err := tx.ExecContext(ctx,
 		`INSERT INTO FACTURAS (TOTAL, FECHA_FACTURA) VALUES (?, NOW())`, total)
 	if err != nil {
@@ -311,7 +373,8 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 		return 0, err
 	}
 
-	// Asociar factura con cita-servicios
+	// === PASO 8: Vincular la factura con los registros de CITAS_SERVICIOS ===
+	// CITAS_SERVICIOS.FACTURAS_ID_FACTURA enlaza la tabla puente con la factura.
 	_, err = tx.ExecContext(ctx,
 		`UPDATE CITAS_SERVICIOS SET FACTURAS_ID_FACTURA = ? WHERE ID_CITA = ?`,
 		idFactura, idCita)
@@ -319,13 +382,20 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 		return 0, err
 	}
 
+	// === PASO 9: Commit — si todo fue exitoso, los cambios se persisten ===
 	if err = tx.Commit(); err != nil {
 		return 0, err
 	}
 	return idFactura, nil
 }
 
+// Cancelar elimina una cita y sus detalles. Solo permite cancelar citas propias
+// (verifica que la mascota de la cita pertenezca al cliente).
+// Primero borra DETALLE_CITAS (FK), luego la CITA misma.
+// Retorna true si se eliminó al menos una fila (cita encontrada y autorizada).
 func (s *CitaService) Cancelar(ctx context.Context, idCita, idCliente int64) (bool, error) {
+	// Paso 1: Borrar detalles de cita (FK requiere borrar primero los hijos)
+	// El subquery verifica que la cita pertenece al cliente vía MASCOTAS.
 	_, err := s.db.ExecContext(ctx,
 		`DELETE FROM DETALLE_CITAS
 		 WHERE ID_CITA = ? AND ID_CITA IN (
@@ -339,6 +409,7 @@ func (s *CitaService) Cancelar(ctx context.Context, idCita, idCliente int64) (bo
 		return false, err
 	}
 
+	// Paso 2: Borrar la cita (solo si la mascota es del cliente)
 	result, err := s.db.ExecContext(ctx,
 		`DELETE FROM CITAS
 		 WHERE ID_CITA = ? AND ID_MASCOTA IN (

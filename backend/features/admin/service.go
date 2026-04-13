@@ -1,3 +1,28 @@
+/*
+admin/service.go — Lógica de negocio para el panel de administración.
+
+ACCESO: Solo usuarios con ROL=0 (Admin). El middleware RequireAdmin verifica esto.
+
+OPERACIONES DISPONIBLES:
+ 1. GetStats — 4 conteos para las tarjetas del dashboard admin:
+    servicios totales, veterinarios, clientes registrados, citas activas.
+ 2. CRUD Servicios — Crear, listar, editar, eliminar servicios veterinarios.
+ 3. CRUD Veterinarios — Crear, listar, editar, eliminar veterinarios.
+ 4. ListClientes — Solo lectura (el admin no crea/edita clientes).
+ 5. ListCitas + UpdateEstadoCita — Ver todas las citas y cambiar su estado.
+
+FLUJO DE DATOS:
+Frontend admin (panel-layout SPA) → apiGet/apiPost('/admin/...') →
+handlers.go (RequireAdmin) → service.go (queries directas a MariaDB) →
+JSON response → frontend renderiza en tablas/formularios modales.
+
+PATRÓN CRUD:
+Cada entidad (Servicios, Veterinarios) tiene: List, Create, Update, Delete.
+- List: SELECT con IFNULL para campos nullable (evita errores de Scan).
+- Create: INSERT → retorna LastInsertId.
+- Update: UPDATE WHERE ID=? (no verifica existencia — falla silenciosamente).
+- Delete: DELETE WHERE ID=? (mismo comportamiento).
+*/
 package admin
 
 import (
@@ -15,6 +40,7 @@ func NewAdminService(db *sql.DB) *AdminService {
 
 // ---------- Dashboard stats ----------
 
+// DashboardStats son las 4 métricas que se muestran en las tarjetas del dashboard admin.
 type DashboardStats struct {
 	Servicios    int `json:"servicios"`
 	Veterinarios int `json:"veterinarios"`
@@ -22,6 +48,8 @@ type DashboardStats struct {
 	CitasActivas int `json:"citas_activas"`
 }
 
+// GetStats ejecuta 4 COUNT queries para las tarjetas del dashboard.
+// Usa un slice de structs para evitar repetir el patrón QueryRow+Scan.
 func (s *AdminService) GetStats(ctx context.Context) (*DashboardStats, error) {
 	st := &DashboardStats{}
 	queries := []struct {
@@ -43,6 +71,9 @@ func (s *AdminService) GetStats(ctx context.Context) (*DashboardStats, error) {
 
 // ---------- Servicios CRUD ----------
 
+// ServicioRow es el struct para listar/editar servicios en el panel admin.
+// Los JSON tags coinciden con los nombres de columnas de MariaDB en mayúsculas
+// (convención usada en todo el proyecto para facilitar el mapeo frontend-backend).
 type ServicioRow struct {
 	ID          int64   `json:"ID_SERVICIO"`
 	Nombre      string  `json:"NOMBRE_SERVICIO"`
@@ -52,6 +83,8 @@ type ServicioRow struct {
 	Categoria   string  `json:"CATEGORIA"`
 }
 
+// ListServicios retorna todos los servicios ordenados por categoría y nombre.
+// IFNULL protege contra columnas NULL que causarían error en Scan.
 func (s *AdminService) ListServicios(ctx context.Context) ([]ServicioRow, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT ID_SERVICIO, NOMBRE_SERVICIO, IFNULL(DESCRIPCION,''), PRECIO, IFNULL(DURACION_MINUTOS,0), CATEGORIA
@@ -95,6 +128,8 @@ func (s *AdminService) DeleteServicio(ctx context.Context, id int64) error {
 
 // ---------- Veterinarios CRUD ----------
 
+// VeterinarioRow usa JSON tag "DIDENTIDAD_VETERINARIO" para coincidir con la
+// columna de MariaDB (corregido de "DIDENTIDAD" genérico).
 type VeterinarioRow struct {
 	ID           int64  `json:"ID_VETERINARIO"`
 	DIdentidad   string `json:"DIDENTIDAD_VETERINARIO"`
@@ -148,6 +183,7 @@ func (s *AdminService) DeleteVeterinario(ctx context.Context, id int64) error {
 
 // ---------- Clientes (read-only) ----------
 
+// ClienteRow usa JSON tag "DIDENTIDAD_CLIENTE" para coincidir con la columna real.
 type ClienteRow struct {
 	ID         int64  `json:"ID_CLIENTE"`
 	DIdentidad string `json:"DIDENTIDAD_CLIENTE"`
@@ -158,6 +194,7 @@ type ClienteRow struct {
 	Registro   string `json:"FECHA_REGISTRO"`
 }
 
+// ListClientes retorna todos los clientes. Solo lectura — el admin no crea clientes.
 func (s *AdminService) ListClientes(ctx context.Context) ([]ClienteRow, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT ID_CLIENTE, DIDENTIDAD_CLIENTE, NOMBRE, APELLIDO, EMAIL, TELEFONO,
@@ -180,6 +217,8 @@ func (s *AdminService) ListClientes(ctx context.Context) ([]ClienteRow, error) {
 
 // ---------- Citas management ----------
 
+// CitaRow incluye datos de mascota, cliente y veterinario resueltos por JOINs.
+// Total se calcula con subquery SUM de precios de servicios vinculados.
 type CitaRow struct {
 	ID          int64   `json:"ID_CITA"`
 	FechaCita   string  `json:"FECHA_CITA"`
@@ -190,6 +229,8 @@ type CitaRow struct {
 	Total       float64 `json:"TOTAL"`
 }
 
+// ListCitas retorna TODAS las citas del sistema (sin filtro por cliente).
+// El admin ve citas de todos los clientes con toda la información relevante.
 func (s *AdminService) ListCitas(ctx context.Context) ([]CitaRow, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT c.ID_CITA, DATE_FORMAT(c.FECHA_CITA, '%Y-%m-%d %H:%i') AS FECHA_CITA,
@@ -217,6 +258,8 @@ func (s *AdminService) ListCitas(ctx context.Context) ([]CitaRow, error) {
 	return list, rows.Err()
 }
 
+// UpdateEstadoCita cambia el estado de una cita. El admin puede poner
+// Activa, Completada o Cancelada (validado en el handler).
 func (s *AdminService) UpdateEstadoCita(ctx context.Context, idCita int64, estado string) error {
 	_, err := s.db.ExecContext(ctx, `UPDATE CITAS SET ESTADO=? WHERE ID_CITA=?`, estado, idCita)
 	return err

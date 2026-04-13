@@ -1,3 +1,14 @@
+/*
+mascotas/handlers.go — Capa HTTP para gestión de mascotas del cliente.
+
+ENDPOINTS:
+GET  /api/mascotas         → Lista completa de mascotas del cliente (mis-mascotas page)
+GET  /api/mascotas/nombres → Solo ID+nombre para dropdowns (agendar-cita)
+POST /api/mascotas/agregar → Registrar nueva mascota
+
+FLUJO: Todos usan RequireAuth → c.IDCliente → service → JSONOk.
+Las mascotas siempre están filtradas por el cliente de la sesión.
+*/
 package mascotas
 
 import (
@@ -15,6 +26,8 @@ func RegisterRoutes(mux *http.ServeMux, db *sql.DB) {
 	mux.HandleFunc("POST /api/mascotas/agregar", agregarHandler(svc))
 }
 
+// obtenerHandler → GET /api/mascotas
+// Retorna lista completa con especie, raza, edad y datos del dueño.
 func obtenerHandler(svc *MascotaService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		c := shared.RequireAuth(w, r)
@@ -34,6 +47,8 @@ func obtenerHandler(svc *MascotaService) http.HandlerFunc {
 	}
 }
 
+// obtenerNombresHandler → GET /api/mascotas/nombres
+// Retorna subset ligero (ID + nombre) para el <select> del formulario agendar-cita.
 func obtenerNombresHandler(svc *MascotaService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		c := shared.RequireAuth(w, r)
@@ -53,6 +68,8 @@ func obtenerNombresHandler(svc *MascotaService) http.HandlerFunc {
 	}
 }
 
+// agregarHandler → POST /api/mascotas/agregar
+// Recibe {nombre, especie, raza, edad} y crea la mascota vinculada al c.IDCliente.
 func agregarHandler(svc *MascotaService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		c := shared.RequireAuth(w, r)
@@ -64,7 +81,7 @@ func agregarHandler(svc *MascotaService) http.HandlerFunc {
 			Nombre  string `json:"nombre"`
 			Especie string `json:"especie"`
 			Raza    string `json:"raza"`
-			Edad    int    `json:"edad"`
+			Edad    int    `json:"edad"` // Edad en meses, se almacena como MESES en BD
 		}
 		if err := shared.DecodeBody(r, &body); err != nil {
 			shared.JSONErr(w, 400, "Datos inválidos.")

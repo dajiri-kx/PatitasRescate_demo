@@ -1,3 +1,23 @@
+/*
+veterinario/handlers.go — Capa HTTP del portal veterinario.
+
+SEGURIDAD:
+Todos los handlers usan shared.RequireVeterinario(w, r) que verifica:
+1. Sesión activa (cookie válida).
+2. Rol == 2 (Veterinario).
+3. IDVeterinario != 0 (vinculado a un registro en VETERINARIOS).
+Si falla, responde 403 y retorna nil.
+
+ENDPOINTS (3 en total):
+GET  /api/vet/stats       → Métricas del dashboard vet (filtradas por su ID)
+GET  /api/vet/citas       → Lista de citas asignadas a este veterinario
+POST /api/vet/citas/estado → Cambiar estado (solo Completada o Cancelada)
+
+DIFERENCIA CON ADMIN:
+- El admin usa RequireAdmin y puede cambiar a cualquier estado.
+- El vet usa RequireVeterinario y solo puede marcar Completada o Cancelada.
+- El vet no puede reactivar una cita cancelada (no hay "Activa" en su whitelist).
+*/
 package veterinario
 
 import (
@@ -8,6 +28,7 @@ import (
 	"patitas-backend/shared"
 )
 
+// RegisterRoutes registra los 3 endpoints del portal veterinario.
 func RegisterRoutes(mux *http.ServeMux, db *sql.DB) {
 	svc := NewVetService(db)
 
@@ -16,6 +37,8 @@ func RegisterRoutes(mux *http.ServeMux, db *sql.DB) {
 	mux.HandleFunc("POST /api/vet/citas/estado", vetUpdateEstadoHandler(svc))
 }
 
+// vetStatsHandler retorna las 3 métricas filtradas por el veterinario logueado.
+// c.IDVeterinario viene de la sesión (asignado durante login).
 func vetStatsHandler(svc *VetService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		c := shared.RequireVeterinario(w, r)
@@ -32,6 +55,7 @@ func vetStatsHandler(svc *VetService) http.HandlerFunc {
 	}
 }
 
+// vetCitasHandler retorna la agenda completa del veterinario.
 func vetCitasHandler(svc *VetService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		c := shared.RequireVeterinario(w, r)
@@ -44,6 +68,7 @@ func vetCitasHandler(svc *VetService) http.HandlerFunc {
 			shared.JSONErr(w, 500, "Error al obtener citas.")
 			return
 		}
+		// nil → []vacío para consistencia JSON.
 		if list == nil {
 			list = []VetCita{}
 		}
@@ -51,6 +76,9 @@ func vetCitasHandler(svc *VetService) http.HandlerFunc {
 	}
 }
 
+// vetUpdateEstadoHandler cambia el estado de una cita del veterinario.
+// WHITELIST RESTRINGIDA: solo "Completada" y "Cancelada".
+// El veterinario NO puede reactivar citas (a diferencia del admin).
 func vetUpdateEstadoHandler(svc *VetService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		c := shared.RequireVeterinario(w, r)

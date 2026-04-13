@@ -1,3 +1,19 @@
+/*
+   components.js — Componentes compartidos del frontend: navbar y footer.
+
+   RENDERIZADO DINÁMICO:
+   Cada página HTML tiene <div id="app-header"></div> y <div id="app-footer"></div>.
+   Al cargar (DOMContentLoaded), initLayout() llama renderHeader() y renderFooter()
+   que inyectan el HTML generado dinámicamente.
+
+   NAVBAR CONDICIONAL POR ROL:
+   - No logueado: muestra Servicios, Ubicación, Contáctenos + botones Login/Register.
+   - Cliente (rol=1): muestra Inicio, Mis Citas, Mis Mascotas, Mis Facturas, Servicios.
+   - Admin (rol=0): mismo que cliente + link "Panel Admin" con badge rojo en el dropdown.
+   - Veterinario (rol=2): mismo que cliente + link "Portal Veterinario" con badge teal.
+
+   SEGURIDAD: escapeHtml() previene XSS al mostrar el nombre del usuario en la navbar.
+*/
 async function loadComponent(elementId, url) {
     const el = document.getElementById(elementId);
     if (!el) return;
@@ -9,6 +25,8 @@ async function loadComponent(elementId, url) {
     }
 }
 
+// renderHeader genera la navbar completa según el estado de autenticación.
+// Lee Auth.get() para saber el rol y mostrar los links/badges correspondientes.
 function renderHeader() {
     const loggedIn = Auth.isLoggedIn();
     const nombre = Auth.getNombre();
@@ -110,6 +128,7 @@ function renderFooter() {
     </div>`;
 }
 
+// doLogout cierra la sesión en backend (borra cookie) y en frontend (borra localStorage).
 async function doLogout() {
     try {
         await apiPost('/auth/logout', {});
@@ -118,12 +137,14 @@ async function doLogout() {
     window.location.href = nav('/auth/login/');
 }
 
+// escapeHtml previene inyección XSS al mostrar texto dinámico (e.g., nombre del usuario).
 function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
 }
 
+// initLayout se ejecuta en DOMContentLoaded — renderiza header y footer en toda página.
 function initLayout() {
     renderHeader();
     renderFooter();

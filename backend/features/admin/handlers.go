@@ -1,3 +1,39 @@
+/*
+admin/handlers.go — Capa HTTP del panel de administración.
+
+SEGURIDAD:
+Cada handler llama a shared.RequireAdmin(w, r) como primera línea.
+Si el usuario no tiene sesión activa con Rol==0, RequireAdmin responde
+un 403 y retorna nil → el handler hace "return" y no ejecuta nada más.
+
+ENDPOINTS (12 en total, todos bajo /api/admin/):
+┌──────────────────────────────────┬────────┬──────────────────────────────┐
+│ Ruta                             │ Método │ Descripción                  │
+├──────────────────────────────────┼────────┼──────────────────────────────┤
+│ /api/admin/stats                 │ GET    │ Métricas del dashboard       │
+│ /api/admin/servicios             │ GET    │ Listar servicios             │
+│ /api/admin/servicios             │ POST   │ Crear servicio               │
+│ /api/admin/servicios/editar      │ POST   │ Editar servicio              │
+│ /api/admin/servicios/eliminar    │ POST   │ Eliminar servicio            │
+│ /api/admin/veterinarios          │ GET    │ Listar veterinarios          │
+│ /api/admin/veterinarios          │ POST   │ Crear veterinario            │
+│ /api/admin/veterinarios/editar   │ POST   │ Editar veterinario           │
+│ /api/admin/veterinarios/eliminar │ POST   │ Eliminar veterinario         │
+│ /api/admin/clientes              │ GET    │ Listar clientes (solo lect.) │
+│ /api/admin/citas                 │ GET    │ Listar todas las citas       │
+│ /api/admin/citas/estado          │ POST   │ Cambiar estado de cita       │
+└──────────────────────────────────┴────────┴──────────────────────────────┘
+
+PATRÓN HANDLER:
+ 1. RequireAdmin → corta si no es admin.
+ 2. Para GET: llamar service → responder JSON.
+ 3. Para POST: DecodeBody → validar campos → llamar service → responder JSON.
+ 4. nil-guard en listas: si el slice es nil, devolvemos []vacío para que
+    el frontend reciba un JSON array [] en vez de null.
+
+NOTA sobre mutaciones: Se usa POST para editar/eliminar en vez de PUT/DELETE
+porque el frontend simplificado solo usa GET y POST (sin REST puro).
+*/
 package admin
 
 import (
@@ -9,10 +45,12 @@ import (
 	"patitas-backend/shared"
 )
 
+// RegisterRoutes registra los 12 endpoints del panel admin.
+// Todos los handlers están protegidos internamente por RequireAdmin.
 func RegisterRoutes(mux *http.ServeMux, db *sql.DB) {
 	svc := NewAdminService(db)
 
-	// Dashboard
+	// Dashboard — tarjetas de métricas
 	mux.HandleFunc("GET /api/admin/stats", statsHandler(svc))
 
 	// Servicios CRUD
@@ -27,16 +65,17 @@ func RegisterRoutes(mux *http.ServeMux, db *sql.DB) {
 	mux.HandleFunc("POST /api/admin/veterinarios/editar", updateVeterinarioHandler(svc))
 	mux.HandleFunc("POST /api/admin/veterinarios/eliminar", deleteVeterinarioHandler(svc))
 
-	// Clientes (read-only)
+	// Clientes (solo lectura — no CRUD)
 	mux.HandleFunc("GET /api/admin/clientes", listClientesHandler(svc))
 
-	// Citas management
+	// Citas — ver todas + cambiar estado
 	mux.HandleFunc("GET /api/admin/citas", listCitasHandler(svc))
 	mux.HandleFunc("POST /api/admin/citas/estado", updateEstadoCitaHandler(svc))
 }
 
 // ---------- Dashboard ----------
 
+// statsHandler retorna las 4 métricas del dashboard admin.
 func statsHandler(svc *AdminService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if shared.RequireAdmin(w, r) == nil {
@@ -52,8 +91,9 @@ func statsHandler(svc *AdminService) http.HandlerFunc {
 	}
 }
 
-// ---------- Servicios ----------
+// ---------- Servicios CRUD ----------
 
+// listServiciosHandler retorna todos los servicios para la tabla del panel.
 func listServiciosHandler(svc *AdminService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if shared.RequireAdmin(w, r) == nil {
@@ -65,6 +105,7 @@ func listServiciosHandler(svc *AdminService) http.HandlerFunc {
 			shared.JSONErr(w, 500, "Error al obtener servicios.")
 			return
 		}
+		// nil → []vacío para que el frontend reciba un array, no null.
 		if list == nil {
 			list = []ServicioRow{}
 		}
@@ -72,6 +113,8 @@ func listServiciosHandler(svc *AdminService) http.HandlerFunc {
 	}
 }
 
+// createServicioHandler decodifica el body JSON y crea el servicio.
+// body usa tags minúsculas ("nombre", "precio") — convención del frontend.
 func createServicioHandler(svc *AdminService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if shared.RequireAdmin(w, r) == nil {
@@ -149,7 +192,7 @@ func deleteServicioHandler(svc *AdminService) http.HandlerFunc {
 	}
 }
 
-// ---------- Veterinarios ----------
+// ---------- Veterinarios CRUD ----------
 
 func listVeterinariosHandler(svc *AdminService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -248,8 +291,9 @@ func deleteVeterinarioHandler(svc *AdminService) http.HandlerFunc {
 	}
 }
 
-// ---------- Clientes ----------
+// ---------- Clientes (solo lectura) ----------
 
+// listClientesHandler — el admin solo puede ver clientes, no crear/editar.
 func listClientesHandler(svc *AdminService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if shared.RequireAdmin(w, r) == nil {
@@ -268,8 +312,9 @@ func listClientesHandler(svc *AdminService) http.HandlerFunc {
 	}
 }
 
-// ---------- Citas ----------
+// ---------- Citas (gestión de estado) ----------
 
+// listCitasHandler retorna TODAS las citas del sistema con JOINs resueltos.
 func listCitasHandler(svc *AdminService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if shared.RequireAdmin(w, r) == nil {
@@ -288,6 +333,10 @@ func listCitasHandler(svc *AdminService) http.HandlerFunc {
 	}
 }
 
+// updateEstadoCitaHandler cambia el estado de una cita.
+// MÁQUINA DE ESTADOS permitida: Activa, Completada, Cancelada.
+// El admin puede poner cualquiera de los 3 (el veterinario solo Completada/Cancelada).
+// NOTA: body.ID llega como string desde el frontend → se parsea con strconv.
 func updateEstadoCitaHandler(svc *AdminService) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if shared.RequireAdmin(w, r) == nil {
@@ -301,11 +350,13 @@ func updateEstadoCitaHandler(svc *AdminService) http.HandlerFunc {
 			shared.JSONErr(w, 400, "Datos inválidos.")
 			return
 		}
+		// El frontend envía ID como string → parse a int64.
 		id, err := strconv.ParseInt(body.ID, 10, 64)
 		if err != nil {
 			shared.JSONErr(w, 400, "ID inválido.")
 			return
 		}
+		// Whitelist de estados válidos — previene inyección de valores arbitrarios.
 		validStates := map[string]bool{"Activa": true, "Completada": true, "Cancelada": true}
 		if !validStates[body.Estado] {
 			shared.JSONErr(w, 400, "Estado inválido. Use: Activa, Completada, Cancelada.")

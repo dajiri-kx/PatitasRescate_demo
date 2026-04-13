@@ -5,65 +5,51 @@
 - MariaDB 10.5 o superior
 - Acceso con usuario `root` o con privilegios de `CREATE DATABASE` y `CREATE USER`
 
-## Orden de ejecución
+## Ejecución
 
-Los scripts deben ejecutarse en orden numérico desde un cliente MariaDB con privilegios de administrador:
+Un solo script unificado crea toda la base de datos:
 
 ```bash
-mysql -u root -p < "1. crear_base_datos.sql"
-mysql -u root -p < "2. usuarios_tablas.sql"
-mysql -u root -p < "3. servicios_tablas.sql"
-mysql -u root -p < "4. citas_tablas.sql"
-mysql -u root -p < "5. procedimientos.sql"
+mysql -u root -p < patitas_rescate.sql
 ```
 
-## Descripción de cada script
+> Los scripts numerados (`1. crear_base_datos.sql`, etc.) son la versión anterior
+> separada por pasos. Se conservan como referencia pero **`patitas_rescate.sql` es
+> el script definitivo** y el único que se necesita ejecutar.
 
-### 1. crear_base_datos.sql
-Crea la base de datos `patitas_rescate` y el usuario de aplicación `Progra_PAR` con permisos SELECT, INSERT, UPDATE y DELETE sobre todas las tablas.
+## Qué hace el script
 
-Equivale al `system.sql` de Oracle donde se creaban los schemas separados (`Usuarios_Tablas`, `Citas_Tablas`, `Servicios_Tablas`) y los grants cruzados. En MariaDB todo vive en una sola base de datos, así que este script es mucho más corto.
+### Base de datos y usuario
+Crea la base de datos `patitas_rescate` (utf8mb4) y el usuario de aplicación
+`Progra_PAR` con permisos SELECT, INSERT, UPDATE y DELETE.
 
-### 2. usuarios_tablas.sql
-Crea las tablas de dominio de usuarios:
-- **CLIENTES** — datos personales de los clientes
-- **MASCOTAS** — mascotas asociadas a cada cliente
+### Tablas de usuarios
+- **CLIENTES** — datos personales de los dueños de mascotas
 - **VETERINARIOS** — profesionales que atienden citas
-- **USUARIOS** — credenciales de autenticación (correo + hash bcrypt)
+- **MASCOTAS** — mascotas asociadas a cada cliente (FK → CLIENTES)
+- **USUARIOS** — credenciales de autenticación (FK → CLIENTES, FK → VETERINARIOS)
+  - `ROL`: 0 = Admin, 1 = Cliente (default), 2 = Veterinario
+  - `ID_VETERINARIO`: nullable, solo para rol 2
 
-Incluye datos semilla de 3 veterinarios.
+### Tablas de catálogo
+- **SERVICIOS** — catálogo de servicios con `CATEGORIA` para filtrar en el frontend
+- **PRODUCTOS** — consumibles usados durante los servicios
+- **SERVICIOS_PRODUCTOS** — relación N:N de qué productos consume cada servicio
 
-### 3. servicios_tablas.sql
-Crea las tablas de catálogo de servicios:
-- **SERVICIOS** — servicios ofrecidos (cortes, uñas, etc.)
-- **PRODUCTOS** — productos consumibles (shampoo, acondicionador, etc.)
-- **SERVICIOS_PRODUCTOS** — relación de qué productos consume cada servicio y en qué cantidad
+### Tablas operativas
+- **CITAS** — citas agendadas (estado: Activa → Completada | Cancelada)
+- **FACTURAS** — generadas al agendar, con `ESTADO` (Pendiente → Pagada) y `STRIPE_SESSION_ID`
+- **CITAS_SERVICIOS** — tabla puente que liga citas con servicios y con su factura
 
-Incluye datos semilla de 4 servicios, 3 productos, y sus asociaciones.
+### Funciones y procedimientos
+- Funciones de validación: `existeCliente()`, `existeMascota()`, `mascotaPerteneceACliente()`, etc.
+- `registrarCliente()` — transacción: valida duplicados → inserta CLIENTES + USUARIOS
+- `agendarCita()` — transacción: valida reglas → crea cita → registra servicios → descuenta stock → genera factura
+- `actualizarStock()` / `calcularTotalServicios()`
 
-### 4. citas_tablas.sql
-Crea las tablas operativas:
-- **CITAS** — citas agendadas con fecha, mascota y veterinario
-- **FACTURAS** — facturas generadas al agendar una cita
-- **CITAS_SERVICIOS** — tabla pivote que liga cada cita con sus servicios y su factura
-
-### 5. procedimientos.sql
-Crea funciones y procedimientos almacenados equivalentes a los de Oracle:
-
-**Funciones de validación:**
-- `existeCliente()`, `existeMascota()`, `existeVeterinario()`, `existeServicio()`, `existeProducto()`
-- `mascotaPerteneceACliente()` — verifica propiedad mascota-cliente
-- `mascotaTieneCitaActivaMismaFecha()` — evita citas duplicadas el mismo día
-- `veterinarioDisponible()` — verifica que no haya conflicto de horario
-- `existeCedula()`, `existeCorreo()` — validación de datos únicos en registro
-
-**Funciones de cálculo:**
-- `calcularTotalServicios()` — suma precios de servicios asociados a una cita
-
-**Procedimientos principales:**
-- `registrarCliente()` — valida datos únicos, inserta en CLIENTES y USUARIOS dentro de una transacción
-- `agendarCita()` — valida todas las reglas de negocio, crea la cita, registra servicios, actualiza stock de productos, genera factura y la asocia. Todo en una transacción
-- `actualizarStock()` — descuenta stock de un producto
+### Datos semilla
+- 3 veterinarios, 4 servicios (categoría "Estética"), 3 productos con stock, asociaciones servicio-producto
+- 1 usuario administrador (`admin@patitas.com` / `Admin123!`, ROL=0)
 
 ## Diferencias con Oracle
 
