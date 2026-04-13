@@ -12,12 +12,26 @@
     <header id="app-header"></header>
 
     <div class="container mt-5 mb-5 text-center text-dark">
-        <i class="fas fa-check fa-5x text-success mb-4"></i>
-        <h1>¡GRACIAS POR TU COMPRA!</h1>
-        <p class="lead mt-3">Tu pago ha sido procesado con éxito. Apreciamos tu confianza en <strong>Patitas al Rescate</strong>.</p>
-        <a id="link-proximamente" href="#" class="btn btn-primary mt-3">
-            <i class="fas fa-download me-2"></i> Descargar Factura
-        </a>
+        <div id="pago-loading">
+            <div class="spinner-border text-primary mb-3" role="status"></div>
+            <p class="lead">Verificando tu pago...</p>
+        </div>
+        <div id="pago-exito" style="display: none;">
+            <i class="fas fa-check-circle fa-5x text-success mb-4"></i>
+            <h1>¡GRACIAS POR TU COMPRA!</h1>
+            <p class="lead mt-3">Tu pago ha sido procesado con éxito. Apreciamos tu confianza en <strong>Patitas al Rescate</strong>.</p>
+            <a id="link-dashboard" href="#" class="btn btn-primary mt-3">
+                <i class="fas fa-home me-2"></i> Volver al Dashboard
+            </a>
+        </div>
+        <div id="pago-error" style="display: none;">
+            <i class="fas fa-exclamation-triangle fa-5x text-warning mb-4"></i>
+            <h1>Pago no verificado</h1>
+            <p class="lead mt-3" id="pago-error-msg">Hubo un problema al verificar tu pago.</p>
+            <a id="link-dashboard-error" href="#" class="btn btn-primary mt-3">
+                <i class="fas fa-home me-2"></i> Volver al Dashboard
+            </a>
+        </div>
     </div>
 
     <footer id="app-footer"></footer>
@@ -27,7 +41,31 @@
     <script src="../../shared/js/components.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
     <script>
-        document.getElementById('link-proximamente').href = nav('/proximamente/') + '?msg=Descarga de facturas próximamente.';
+        document.addEventListener('DOMContentLoaded', async () => {
+            const dashboardUrl = nav('/dashboard/');
+            document.getElementById('link-dashboard').href = dashboardUrl;
+            document.getElementById('link-dashboard-error').href = dashboardUrl;
+
+            const params = new URLSearchParams(window.location.search);
+            const sessionId = params.get('session_id');
+
+            if (!sessionId) {
+                // Sin session_id, mostrar éxito genérico
+                document.getElementById('pago-loading').style.display = 'none';
+                document.getElementById('pago-exito').style.display = 'block';
+                return;
+            }
+
+            try {
+                await apiPost('/checkout/verificar', { session_id: sessionId });
+                document.getElementById('pago-loading').style.display = 'none';
+                document.getElementById('pago-exito').style.display = 'block';
+            } catch (err) {
+                document.getElementById('pago-loading').style.display = 'none';
+                document.getElementById('pago-error').style.display = 'block';
+                document.getElementById('pago-error-msg').textContent = err.message || 'Hubo un problema al verificar tu pago.';
+            }
+        });
     </script>
 </body>
 </html>

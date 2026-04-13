@@ -14,9 +14,9 @@ var DB *sql.DB
 func InitDB() {
 	host := envOr("DB_HOST", "localhost")
 	port := envOr("DB_PORT", "3306")
-	dbname := envOr("DB_NAME", "patitas_rescate")
-	user := envOr("DB_USER", "Progra_PAR")
-	pass := envOr("DB_PASS", "PrograPAR_2026")
+	dbname := envOr("DB_NAME", "Patitas67D")
+	user := envOr("DB_USER", "demopar")
+	pass := envOr("DB_PASS", "demopar99")
 
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4",
 		user, pass, host, port, dbname)

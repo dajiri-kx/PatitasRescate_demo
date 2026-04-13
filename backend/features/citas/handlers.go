@@ -83,7 +83,8 @@ func obtenerServiciosHandler(svc *CitaService) http.HandlerFunc {
 		if c == nil {
 			return
 		}
-		list, err := svc.ObtenerServicios(r.Context())
+		categoria := r.URL.Query().Get("categoria")
+		list, err := svc.ObtenerServicios(r.Context(), categoria)
 		if err != nil {
 			log.Printf("Error servicios: %v", err)
 			shared.JSONErr(w, 500, "Error al obtener servicios.")
@@ -129,7 +130,7 @@ func agendarHandler(svc *CitaService) http.HandlerFunc {
 		fechaCita := body.Fecha + " " + body.Hora
 		serviciosList := strings.Join(body.Servicio, ",")
 
-		err = svc.Agendar(r.Context(), c.IDCliente, idMascota, idVet, fechaCita, serviciosList)
+		idFactura, err := svc.Agendar(r.Context(), c.IDCliente, idMascota, idVet, fechaCita, serviciosList)
 		if err != nil {
 			errMsg := err.Error()
 			if strings.Contains(errMsg, "ORA-200") {
@@ -146,7 +147,10 @@ func agendarHandler(svc *CitaService) http.HandlerFunc {
 			return
 		}
 
-		shared.JSONMsg(w, "Cita agendada exitosamente.")
+		shared.JSONOk(w, map[string]interface{}{
+			"message":    "Cita agendada exitosamente.",
+			"id_factura": idFactura,
+		})
 	}
 }
 

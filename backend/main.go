@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"patitas-backend/features/auth"
+	"patitas-backend/features/checkout"
 	"patitas-backend/features/citas"
 	"patitas-backend/features/contacto"
 	"patitas-backend/features/facturas"
@@ -17,6 +18,7 @@ func main() {
 	shared.InitDB()
 	defer shared.DB.Close()
 	shared.InitSessionStore()
+	shared.InitStripe()
 
 	mux := http.NewServeMux()
 
@@ -26,6 +28,7 @@ func main() {
 	mascotas.RegisterRoutes(mux, shared.DB)
 	facturas.RegisterRoutes(mux, shared.DB)
 	contacto.RegisterRoutes(mux)
+	checkout.RegisterRoutes(mux, shared.DB)
 
 	// Serve frontend static files
 	mux.Handle("/frontend/", http.StripPrefix("/frontend/", http.FileServer(http.Dir("../frontend"))))

@@ -3,83 +3,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Patitas al Rescate - Dashboard</title>
+    <title>Patitas al Rescate - Inicio</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.2/font/bootstrap-icons.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; font-family: 'Roboto', sans-serif; }
-        .container { margin-top: 20px; margin-bottom: 20px; }
-        .card { border: none; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        .section-title { font-size: 1.5rem; font-weight: bold; color: #007bff; margin-bottom: 20px; }
-        .table { border-radius: 10px; overflow: hidden; }
-        .table thead { background-color: #007bff; color: white; }
-        .table tbody tr:hover { background-color: #f1f1f1; }
-        .alert { border-radius: 10px; }
+        body { background-color: #f8f9fa; }
+        .summary-card { border: none; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); transition: transform 0.2s, box-shadow 0.2s; cursor: pointer; text-decoration: none; color: inherit; }
+        .summary-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.12); color: inherit; }
+        .card-icon { font-size: 2.5rem; }
+        .card-count { font-size: 2rem; font-weight: 700; }
+        .card-label { color: #666; font-size: 0.9rem; }
+        .welcome-section { background: linear-gradient(135deg, #ff8c00, #ff6b00); color: white; border-radius: 12px; padding: 2rem; margin-bottom: 2rem; }
     </style>
 </head>
 <body>
     <header id="app-header"></header>
 
-    <div class="container">
-        <h1 class="text-center mb-4">Bienvenido al Dashboard</h1>
+    <div class="container my-4">
+        <div class="welcome-section text-center">
+            <h1><i class="bi bi-house-heart"></i> ¡Bienvenido, <span id="nombre-usuario">Usuario</span>!</h1>
+            <p class="lead mb-0">Aquí tienes un resumen de tu cuenta</p>
+        </div>
+
         <div id="alert-box"></div>
 
-        <!-- Perfil del Cliente -->
-        <section class="mb-5">
-            <h2 class="section-title">Perfil del Cliente</h2>
-            <div class="card">
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6" id="perfil-info">
-                            <p><strong>Cargando perfil...</strong></p>
-                        </div>
-                        <div class="col-md-6 text-end">
-                            <a id="link-editar-perfil" href="#" class="btn btn-warning">Editar Perfil</a>
-                        </div>
+        <div class="row g-4">
+            <!-- Mascotas -->
+            <div class="col-md-6 col-lg-3">
+                <a href="#" id="card-mascotas" class="card summary-card h-100">
+                    <div class="card-body text-center py-4">
+                        <i class="bi bi-heart-pulse card-icon text-danger"></i>
+                        <div class="card-count mt-2" id="count-mascotas">-</div>
+                        <div class="card-label">Mascotas</div>
                     </div>
-                </div>
+                </a>
             </div>
-        </section>
 
-        <!-- Mascotas -->
-        <section class="mb-5">
-            <div class="d-flex justify-content-between align-items-center my-2">
-                <h2 class="section-title">Mascotas</h2>
-                <a id="link-agregar-mascota" href="#" class="btn btn-warning">Agregar Mascota</a>
+            <!-- Citas Activas -->
+            <div class="col-md-6 col-lg-3">
+                <a href="#" id="card-citas" class="card summary-card h-100">
+                    <div class="card-body text-center py-4">
+                        <i class="bi bi-calendar-check card-icon text-primary"></i>
+                        <div class="card-count mt-2" id="count-citas">-</div>
+                        <div class="card-label">Citas Activas</div>
+                    </div>
+                </a>
             </div>
-            <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead><tr><th>Nombre</th><th>Raza</th><th>Edad (meses)</th><th>Acciones</th></tr></thead>
-                    <tbody id="mascotas-body">
-                        <tr><td colspan="4" class="text-center">Cargando...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
 
-        <!-- Citas -->
-        <section class="mb-5">
-            <div class="d-flex justify-content-between align-items-center my-2">
-                <h2 class="section-title">Citas Agendadas</h2>
-                <a id="link-agendar-cita" href="#" class="btn btn-warning">Agendar Nueva Cita</a>
+            <!-- Facturas Pendientes -->
+            <div class="col-md-6 col-lg-3">
+                <a href="#" id="card-facturas" class="card summary-card h-100">
+                    <div class="card-body text-center py-4">
+                        <i class="bi bi-receipt card-icon text-warning"></i>
+                        <div class="card-count mt-2" id="count-facturas-pendientes">-</div>
+                        <div class="card-label">Facturas Pendientes</div>
+                    </div>
+                </a>
             </div>
-            <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead><tr><th>ID</th><th>Mascota</th><th>Fecha</th><th>Estado</th><th>Acciones</th></tr></thead>
-                    <tbody id="citas-body">
-                        <tr><td colspan="5" class="text-center">Cargando...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
 
-        <!-- Facturas -->
-        <section class="mb-5">
-            <h2 class="section-title">Facturas</h2>
-            <div id="facturas-container">
-                <div class="alert alert-info">Cargando facturas...</div>
+            <!-- Agendar Cita -->
+            <div class="col-md-6 col-lg-3">
+                <a href="#" id="card-agendar" class="card summary-card h-100" style="background: linear-gradient(135deg, #ff8c00, #ff6b00); color: white;">
+                    <div class="card-body text-center py-4 d-flex flex-column justify-content-center">
+                        <i class="bi bi-plus-circle card-icon"></i>
+                        <div class="mt-2 fw-bold fs-5">Agendar Cita</div>
+                        <div style="opacity:0.8; font-size:0.9rem;">Reserva un servicio</div>
+                    </div>
+                </a>
             </div>
-        </section>
+        </div>
     </div>
 
     <footer id="app-footer"></footer>

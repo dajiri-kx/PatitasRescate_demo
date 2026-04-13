@@ -11,12 +11,13 @@
     <header id="app-header"></header>
 
     <div class="container my-5">
-        <div class="text-center mb-4">
-            <img src="https://okvet.co/wp-content/uploads/2020/06/que-es-una-veterinaria.jpg"
+        <div class="text-center mb-4" id="banner-container">
+            <img id="banner-img" src="https://okvet.co/wp-content/uploads/2020/06/que-es-una-veterinaria.jpg"
                  alt="Veterinaria" class="img-fluid rounded shadow" style="max-height: 250px; object-fit: cover;">
         </div>
 
-        <h1 class="text-center" style="color: #ffc107;">Agendar Cita</h1>
+        <h1 class="text-center" style="color: #ffc107;" id="form-title">Agendar Cita</h1>
+        <p class="text-center text-muted mb-4" id="form-subtitle"></p>
 
         <div id="alert-box"></div>
 
@@ -39,7 +40,7 @@
             </div>
 
             <div class="mb-3">
-                <label class="form-label">Selecciona los Servicios:</label>
+                <label class="form-label" id="servicios-label">Selecciona los Servicios:</label>
                 <div id="servicios-container">Cargando servicios...</div>
             </div>
 

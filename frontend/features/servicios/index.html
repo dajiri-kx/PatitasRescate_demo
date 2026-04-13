@@ -51,7 +51,7 @@
                             <i class="bi bi-stethoscope icon-large text-primary mb-3"></i>
                             <h4 class="card-title">Consulta Veterinaria</h4>
                             <p class="card-text">Evaluación médica completa, diagnósticos y tratamientos personalizados.</p>
-                            <a class="btn btn-primary link-agendar" href="#">Agendar Cita</a>
+                            <a class="btn btn-primary link-agendar" data-categoria="Consulta" href="#">Agendar Cita</a>
                         </div>
                     </div>
                 </div>
@@ -61,7 +61,7 @@
                             <i class="bi bi-shield-check icon-large text-success mb-3"></i>
                             <h4 class="card-title">Vacunación</h4>
                             <p class="card-text">Programas de vacunación completos para todas las etapas de vida.</p>
-                            <a class="btn btn-success link-agendar" href="#">Agendar Cita</a>
+                            <a class="btn btn-success link-agendar" data-categoria="Vacunación" href="#">Agendar Cita</a>
                         </div>
                     </div>
                 </div>
@@ -71,7 +71,7 @@
                             <i class="bi bi-heart-pulse icon-large text-danger mb-3"></i>
                             <h4 class="card-title">Cirugías &amp; Procedimientos</h4>
                             <p class="card-text">Intervenciones quirúrgicas y tratamientos avanzados.</p>
-                            <a class="btn btn-danger link-agendar" href="#">Agendar Cita</a>
+                            <a class="btn btn-danger link-agendar" data-categoria="Cirugía" href="#">Agendar Cita</a>
                         </div>
                     </div>
                 </div>
@@ -81,7 +81,7 @@
                             <i class="bi bi-scissors icon-large text-warning mb-3"></i>
                             <h4 class="card-title">Estética y Spa</h4>
                             <p class="card-text">Baños, cortes, tratamientos de spa para que tu mascota luzca radiante.</p>
-                            <a class="btn btn-warning link-agendar" href="#">Agendar Cita</a>
+                            <a class="btn btn-warning link-agendar" data-categoria="Estética" href="#">Agendar Cita</a>
                         </div>
                     </div>
                 </div>
@@ -91,17 +91,18 @@
                             <i class="bi bi-camera icon-large text-info mb-3"></i>
                             <h4 class="card-title">Diagnóstico por Imágenes</h4>
                             <p class="card-text">Tecnología de punta para diagnósticos precisos.</p>
-                            <a class="btn btn-info link-agendar" href="#">Agendar Cita</a>
+                            <a class="btn btn-info link-agendar" data-categoria="Diagnóstico" href="#">Agendar Cita</a>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-6 col-lg-4">
-                    <div class="card service-card bg-special h-100 shadow-sm">
+                    <div class="card service-card h-100 shadow-sm" style="background-color:#fce4ec;">
                         <div class="card-body text-center">
-                            <i class="bi bi-exclamation-triangle icon-large text-warning mb-3"></i>
+                            <i class="bi bi-exclamation-triangle icon-large text-danger mb-3"></i>
                             <h4 class="card-title">Atención de Emergencia</h4>
-                            <p class="card-text">Servicio 24/7 para atender emergencias.</p>
-                            <a class="btn btn-warning link-agendar" href="#">Agendar Cita</a>
+                            <p class="card-text">Servicio 24/7 para atender emergencias de tu mascota.</p>
+                            <a class="btn btn-danger" href="tel:+50688881234"><i class="bi bi-telephone-fill me-1"></i>Llamar Ahora</a>
+                            <a class="btn btn-outline-danger ms-2" href="https://wa.me/50688881234" target="_blank"><i class="bi bi-whatsapp me-1"></i>WhatsApp</a>
                         </div>
                     </div>
                 </div>
@@ -139,9 +140,12 @@
     <script src="../../shared/js/components.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
     <script>
-        const agendarUrl = nav('/citas/agendar-cita/');
-        document.getElementById('link-agendar-top').href = agendarUrl;
-        document.querySelectorAll('.link-agendar').forEach(a => a.href = agendarUrl);
+        const baseAgendar = nav('/citas/agendar-cita/');
+        document.getElementById('link-agendar-top').href = baseAgendar;
+        document.querySelectorAll('.link-agendar').forEach(a => {
+            const cat = a.dataset.categoria;
+            a.href = cat ? baseAgendar + '?categoria=' + encodeURIComponent(cat) : baseAgendar;
+        });
     </script>
 </body>
 </html>

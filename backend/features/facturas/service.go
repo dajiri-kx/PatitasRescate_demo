@@ -22,8 +22,7 @@ type Factura struct {
 
 func (s *FacturaService) ObtenerPorCliente(ctx context.Context, idCliente int64) ([]Factura, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT f.ID_FACTURA, DATE_FORMAT(f.FECHA_FACTURA, '%Y-%m-%d') AS FECHA_FACTURA, f.TOTAL,
-        CASE WHEN c.FECHA_CITA < NOW() THEN 'Pagada' ELSE 'Pendiente' END AS ESTADO
+		`SELECT f.ID_FACTURA, DATE_FORMAT(f.FECHA_FACTURA, '%Y-%m-%d') AS FECHA_FACTURA, f.TOTAL, f.ESTADO
  FROM FACTURAS f
  JOIN CITAS_SERVICIOS cs ON cs.FACTURAS_ID_FACTURA = f.ID_FACTURA
  JOIN CITAS c ON cs.ID_CITA = c.ID_CITA

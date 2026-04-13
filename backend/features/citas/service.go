@@ -36,9 +36,11 @@ type Veterinario struct {
 }
 
 type Servicio struct {
-	IDServicio     int64  `json:"ID_SERVICIO"`
-	NombreServicio string `json:"NOMBRE_SERVICIO"`
-	Descripcion    string `json:"DESCRIPCION"`
+	IDServicio     int64   `json:"ID_SERVICIO"`
+	NombreServicio string  `json:"NOMBRE_SERVICIO"`
+	Descripcion    string  `json:"DESCRIPCION"`
+	Precio         float64 `json:"PRECIO"`
+	Categoria      string  `json:"CATEGORIA"`
 }
 
 func (s *CitaService) ObtenerPorCliente(ctx context.Context, idCliente int64) ([]Cita, error) {
@@ -112,10 +114,18 @@ func (s *CitaService) ObtenerVeterinarios(ctx context.Context) ([]Veterinario, e
 	return list, rows.Err()
 }
 
-func (s *CitaService) ObtenerServicios(ctx context.Context) ([]Servicio, error) {
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT ID_SERVICIO, NOMBRE_SERVICIO, IFNULL(DESCRIPCION, ' ') AS DESCRIPCION
-		 FROM SERVICIOS ORDER BY NOMBRE_SERVICIO`)
+func (s *CitaService) ObtenerServicios(ctx context.Context, categoria string) ([]Servicio, error) {
+	var rows *sql.Rows
+	var err error
+	if categoria != "" {
+		rows, err = s.db.QueryContext(ctx,
+			`SELECT ID_SERVICIO, NOMBRE_SERVICIO, IFNULL(DESCRIPCION, ' ') AS DESCRIPCION, PRECIO, CATEGORIA
+			 FROM SERVICIOS WHERE CATEGORIA = ? ORDER BY NOMBRE_SERVICIO`, categoria)
+	} else {
+		rows, err = s.db.QueryContext(ctx,
+			`SELECT ID_SERVICIO, NOMBRE_SERVICIO, IFNULL(DESCRIPCION, ' ') AS DESCRIPCION, PRECIO, CATEGORIA
+			 FROM SERVICIOS ORDER BY CATEGORIA, NOMBRE_SERVICIO`)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +134,7 @@ func (s *CitaService) ObtenerServicios(ctx context.Context) ([]Servicio, error) 
 	var list []Servicio
 	for rows.Next() {
 		var sv Servicio
-		if err := rows.Scan(&sv.IDServicio, &sv.NombreServicio, &sv.Descripcion); err != nil {
+		if err := rows.Scan(&sv.IDServicio, &sv.NombreServicio, &sv.Descripcion, &sv.Precio, &sv.Categoria); err != nil {
 			return nil, err
 		}
 		list = append(list, sv)
@@ -132,7 +142,7 @@ func (s *CitaService) ObtenerServicios(ctx context.Context) ([]Servicio, error) 
 	return list, rows.Err()
 }
 
-func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeterinario int64, fechaCita, servicios string) error {
+func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeterinario int64, fechaCita, servicios string) (int64, error) {
 	// Parsear lista de servicios
 	parts := strings.Split(servicios, ",")
 	var svcIDs []int64
@@ -143,43 +153,43 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 		}
 		id, err := strconv.ParseInt(p, 10, 64)
 		if err != nil {
-			return errors.New("ORA-20007: El servicio solicitado no es válido")
+			return 0, errors.New("ORA-20007: El servicio solicitado no es válido")
 		}
 		svcIDs = append(svcIDs, id)
 	}
 	if len(svcIDs) == 0 {
-		return errors.New("ORA-20007: Debe seleccionar al menos un servicio")
+		return 0, errors.New("ORA-20007: Debe seleccionar al menos un servicio")
 	}
 
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer tx.Rollback()
 
 	// Validar cliente
 	var count int
 	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM CLIENTES WHERE ID_CLIENTE = ?`, idCliente).Scan(&count); err != nil {
-		return err
+		return 0, err
 	}
 	if count == 0 {
-		return errors.New("ORA-20001: El cliente no existe")
+		return 0, errors.New("ORA-20001: El cliente no existe")
 	}
 
 	// Validar mascota
 	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM MASCOTAS WHERE ID_MASCOTA = ?`, idMascota).Scan(&count); err != nil {
-		return err
+		return 0, err
 	}
 	if count == 0 {
-		return errors.New("ORA-20002: La mascota no existe")
+		return 0, errors.New("ORA-20002: La mascota no existe")
 	}
 
 	// Validar mascota pertenece al cliente
 	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM MASCOTAS WHERE ID_MASCOTA = ? AND ID_CLIENTE = ?`, idMascota, idCliente).Scan(&count); err != nil {
-		return err
+		return 0, err
 	}
 	if count == 0 {
-		return errors.New("ORA-20003: La mascota no pertenece al cliente")
+		return 0, errors.New("ORA-20003: La mascota no pertenece al cliente")
 	}
 
 	// Validar que la mascota no tenga cita activa el mismo día
@@ -187,18 +197,18 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 		`SELECT COUNT(*) FROM CITAS
 		 WHERE ID_MASCOTA = ? AND DATE(FECHA_CITA) = DATE(STR_TO_DATE(?, '%Y-%m-%d %H:%i')) AND ESTADO = 'Activa'`,
 		idMascota, fechaCita).Scan(&count); err != nil {
-		return err
+		return 0, err
 	}
 	if count > 0 {
-		return errors.New("ORA-20004: La mascota ya tiene una cita activa a la misma hora")
+		return 0, errors.New("ORA-20004: La mascota ya tiene una cita activa a la misma hora")
 	}
 
 	// Validar veterinario
 	if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM VETERINARIOS WHERE ID_VETERINARIO = ?`, idVeterinario).Scan(&count); err != nil {
-		return err
+		return 0, err
 	}
 	if count == 0 {
-		return errors.New("ORA-20005: El veterinario no existe")
+		return 0, errors.New("ORA-20005: El veterinario no existe")
 	}
 
 	// Validar disponibilidad del veterinario
@@ -206,10 +216,10 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 		`SELECT COUNT(*) FROM CITAS
 		 WHERE ID_VETERINARIO = ? AND FECHA_CITA = STR_TO_DATE(?, '%Y-%m-%d %H:%i') AND ESTADO = 'Activa'`,
 		idVeterinario, fechaCita).Scan(&count); err != nil {
-		return err
+		return 0, err
 	}
 	if count > 0 {
-		return errors.New("ORA-20006: El veterinario no está disponible en esa fecha y hora")
+		return 0, errors.New("ORA-20006: El veterinario no está disponible en esa fecha y hora")
 	}
 
 	// Crear la cita
@@ -218,21 +228,21 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 		 VALUES (?, ?, STR_TO_DATE(?, '%Y-%m-%d %H:%i'), 'Activa')`,
 		idMascota, idVeterinario, fechaCita)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	idCita, err := result.LastInsertId()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	// Registrar servicios y actualizar stock
 	for _, svcID := range svcIDs {
 		// Verificar servicio
 		if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM SERVICIOS WHERE ID_SERVICIO = ?`, svcID).Scan(&count); err != nil {
-			return err
+			return 0, err
 		}
 		if count == 0 {
-			return errors.New("ORA-20007: El servicio solicitado no es válido")
+			return 0, errors.New("ORA-20007: El servicio solicitado no es válido")
 		}
 
 		// Insertar cita-servicio
@@ -240,7 +250,7 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 			`INSERT INTO CITAS_SERVICIOS (ID_CITA, ID_SERVICIO) VALUES (?, ?)`,
 			idCita, svcID)
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		// Verificar y actualizar stock de productos asociados
@@ -250,7 +260,7 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 			 JOIN PRODUCTOS p ON sp.ID_PRODUCTO = p.ID_PRODUCTO
 			 WHERE sp.ID_SERVICIO = ?`, svcID)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		type prodInfo struct {
 			idProducto int64
@@ -262,7 +272,7 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 			var pi prodInfo
 			if err = prodRows.Scan(&pi.idProducto, &pi.unidades, &pi.stock); err != nil {
 				prodRows.Close()
-				return err
+				return 0, err
 			}
 			prods = append(prods, pi)
 		}
@@ -270,13 +280,13 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 
 		for _, pi := range prods {
 			if pi.stock < pi.unidades {
-				return errors.New("ORA-20008: No hay suficiente stock para el producto")
+				return 0, errors.New("ORA-20008: No hay suficiente stock para el producto")
 			}
 			_, err = tx.ExecContext(ctx,
 				`UPDATE PRODUCTOS SET STOCK = STOCK - ? WHERE ID_PRODUCTO = ?`,
 				pi.unidades, pi.idProducto)
 			if err != nil {
-				return err
+				return 0, err
 			}
 		}
 	}
@@ -288,17 +298,17 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 		 FROM CITAS_SERVICIOS cs
 		 JOIN SERVICIOS s ON cs.ID_SERVICIO = s.ID_SERVICIO
 		 WHERE cs.ID_CITA = ?`, idCita).Scan(&total); err != nil {
-		return err
+		return 0, err
 	}
 
 	factResult, err := tx.ExecContext(ctx,
 		`INSERT INTO FACTURAS (TOTAL, FECHA_FACTURA) VALUES (?, NOW())`, total)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	idFactura, err := factResult.LastInsertId()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	// Asociar factura con cita-servicios
@@ -306,10 +316,13 @@ func (s *CitaService) Agendar(ctx context.Context, idCliente, idMascota, idVeter
 		`UPDATE CITAS_SERVICIOS SET FACTURAS_ID_FACTURA = ? WHERE ID_CITA = ?`,
 		idFactura, idCita)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
-	return tx.Commit()
+	if err = tx.Commit(); err != nil {
+		return 0, err
+	}
+	return idFactura, nil
 }
 
 func (s *CitaService) Cancelar(ctx context.Context, idCita, idCliente int64) (bool, error) {

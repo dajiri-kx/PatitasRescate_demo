@@ -3,6 +3,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById('link-dashboard').href = nav('/dashboard/');
 
+    // Read category from URL params
+    const params = new URLSearchParams(window.location.search);
+    const categoria = params.get('categoria') || '';
+
+    // Category-specific UI configuration
+    const categoryConfig = {
+        'Consulta':    { title: 'Agendar Consulta Veterinaria', subtitle: 'Evaluación médica completa para tu mascota', icon: 'bi-stethoscope', color: '#0d6efd' },
+        'Vacunación':  { title: 'Agendar Vacunación', subtitle: 'Protege a tu mascota con vacunas al día', icon: 'bi-shield-check', color: '#198754' },
+        'Cirugía':     { title: 'Agendar Cirugía / Procedimiento', subtitle: 'Intervenciones con equipos especializados', icon: 'bi-heart-pulse', color: '#dc3545' },
+        'Estética':    { title: 'Agendar Servicio de Estética', subtitle: 'Baños, cortes y tratamientos de spa', icon: 'bi-scissors', color: '#ffc107' },
+        'Diagnóstico': { title: 'Agendar Diagnóstico por Imágenes', subtitle: 'Radiografías, ecografías y exámenes', icon: 'bi-camera', color: '#0dcaf0' },
+    };
+
+    const config = categoryConfig[categoria];
+    if (config) {
+        document.getElementById('form-title').textContent = config.title;
+        document.getElementById('form-title').style.color = config.color;
+        document.getElementById('form-subtitle').textContent = config.subtitle;
+    }
+
     // Generate time slots
     const horaSelect = document.getElementById('hora');
     for (let h = 8; h <= 17; h++) {
@@ -15,11 +35,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // Build services API URL
+    const serviciosUrl = categoria
+        ? '/citas/servicios?categoria=' + encodeURIComponent(categoria)
+        : '/citas/servicios';
+
     // Load form data in parallel
     try {
         const [mascotasRes, serviciosRes, vetsRes] = await Promise.all([
             apiGet('/mascotas/nombres'),
-            apiGet('/citas/servicios'),
+            apiGet(serviciosUrl),
             apiGet('/citas/veterinarios'),
         ]);
 
@@ -33,14 +58,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             mascotaSelect.appendChild(opt);
         });
 
-        // Populate servicios
+        // Populate servicios with price and description
         const serviciosContainer = document.getElementById('servicios-container');
-        serviciosContainer.innerHTML = serviciosRes.data.map(s => `
-            <div class="form-check">
-                <input class="form-check-input" type="checkbox" name="servicio" value="${s.ID_SERVICIO}" id="servicio_${s.ID_SERVICIO}">
-                <label class="form-check-label" for="servicio_${s.ID_SERVICIO}">${escapeHtml(s.NOMBRE_SERVICIO)}</label>
-            </div>
-        `).join('');
+        if (serviciosRes.data.length === 0) {
+            serviciosContainer.innerHTML = '<p class="text-muted">No hay servicios disponibles en esta categoría.</p>';
+        } else {
+            serviciosContainer.innerHTML = serviciosRes.data.map(s => `
+                <div class="form-check border rounded p-2 mb-2">
+                    <input class="form-check-input" type="checkbox" name="servicio" value="${s.ID_SERVICIO}" id="servicio_${s.ID_SERVICIO}">
+                    <label class="form-check-label w-100" for="servicio_${s.ID_SERVICIO}">
+                        <strong>${escapeHtml(s.NOMBRE_SERVICIO)}</strong>
+                        <span class="text-success float-end">₡${Number(s.PRECIO).toLocaleString('es-CR')}</span>
+                        <br><small class="text-muted">${escapeHtml(s.DESCRIPCION)}</small>
+                    </label>
+                </div>
+            `).join('');
+        }
 
         // Populate veterinarios
         const vetSelect = document.getElementById('veterinario');
@@ -74,7 +107,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                 servicio: serviciosChecked,
                 veterinario: document.getElementById('veterinario').value,
             });
-            alertBox.innerHTML = `<div class="alert alert-success">${escapeHtml(res.message)}</div>`;
+
+            // Intentar redirigir al checkout de Stripe
+            const idFactura = res.data && res.data.id_factura;
+            if (idFactura) {
+                alertBox.innerHTML = `<div class="alert alert-info">Cita agendada. Redirigiendo al pago...</div>`;
+                try {
+                    const checkoutRes = await apiPost('/checkout/crear-sesion', { id_factura: String(idFactura) });
+                    window.location.href = checkoutRes.data.url;
+                    return;
+                } catch (checkoutErr) {
+                    // Si falla Stripe, igual la cita se creó
+                    alertBox.innerHTML = `<div class="alert alert-warning">Cita agendada exitosamente. No se pudo redirigir al pago: ${escapeHtml(checkoutErr.message)}. Puedes pagar desde Mis Facturas.</div>`;
+                }
+            } else {
+                alertBox.innerHTML = `<div class="alert alert-success">${escapeHtml(res.data?.message || res.message || 'Cita agendada exitosamente.')}</div>`;
+            }
             document.getElementById('agendarForm').reset();
         } catch (err) {
             alertBox.innerHTML = `<div class="alert alert-danger">${escapeHtml(err.message)}</div>`;
