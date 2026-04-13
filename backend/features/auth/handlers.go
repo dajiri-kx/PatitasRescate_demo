@@ -5,9 +5,19 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"patitas-backend/shared"
+)
+
+var (
+	reDigits9 = regexp.MustCompile(`^\d{9}$`)
+	reDigits8 = regexp.MustCompile(`^\d{8}$`)
+	rePwUpper = regexp.MustCompile(`[A-Z]`)
+	rePwLower = regexp.MustCompile(`[a-z]`)
+	rePwDigit = regexp.MustCompile(`\d`)
+	rePwSpec  = regexp.MustCompile(`[^A-Za-z0-9]`)
 )
 
 func RegisterRoutes(mux *http.ServeMux, db *sql.DB) {
@@ -47,11 +57,13 @@ func loginHandler(svc *AuthService) http.HandlerFunc {
 		}
 
 		sess := &shared.ClienteSession{
-			IDCliente: cliente.IDCliente,
-			Nombre:    cliente.Nombre,
-			Apellido:  cliente.Apellido,
-			Correo:    cliente.Correo,
-			Telefono:  cliente.Telefono,
+			IDCliente:     cliente.IDCliente,
+			IDVeterinario: cliente.IDVeterinario,
+			Nombre:        cliente.Nombre,
+			Apellido:      cliente.Apellido,
+			Correo:        cliente.Correo,
+			Telefono:      cliente.Telefono,
+			Rol:           cliente.Rol,
 		}
 		if err := shared.SaveCliente(w, r, sess); err != nil {
 			log.Printf("Error sesión: %v", err)
@@ -87,6 +99,24 @@ func registerHandler(svc *AuthService) http.HandlerFunc {
 		}
 		if body.Password != body.ConfirmPassword {
 			shared.JSONErr(w, 400, "Las contraseñas no coinciden.")
+			return
+		}
+		if !reDigits9.MatchString(body.Identificacion) {
+			shared.JSONErr(w, 400, "La identificación debe ser exactamente 9 dígitos numéricos.")
+			return
+		}
+		if !strings.Contains(body.Correo, "@") {
+			shared.JSONErr(w, 400, "El correo debe contener un @.")
+			return
+		}
+		if !reDigits8.MatchString(body.Telefono) {
+			shared.JSONErr(w, 400, "El teléfono debe ser exactamente 8 dígitos numéricos.")
+			return
+		}
+		if len(body.Password) < 8 || !rePwUpper.MatchString(body.Password) ||
+			!rePwLower.MatchString(body.Password) || !rePwDigit.MatchString(body.Password) ||
+			!rePwSpec.MatchString(body.Password) {
+			shared.JSONErr(w, 400, "La contraseña debe tener mínimo 8 caracteres, una mayúscula, una minúscula, un número y un carácter especial.")
 			return
 		}
 
@@ -126,6 +156,7 @@ func checkSessionHandler() http.HandlerFunc {
 			"apellido":   c.Apellido,
 			"correo":     c.Correo,
 			"telefono":   c.Telefono,
+			"rol":        c.Rol,
 		})
 	}
 }

@@ -17,25 +17,28 @@ func NewAuthService(db *sql.DB) *AuthService {
 }
 
 type ClienteData struct {
-	IDCliente int64  `json:"id_cliente"`
-	Nombre    string `json:"nombre"`
-	Apellido  string `json:"apellido"`
-	Correo    string `json:"correo"`
-	Telefono  string `json:"telefono"`
+	IDCliente     int64  `json:"id_cliente"`
+	IDVeterinario int64  `json:"id_veterinario"`
+	Nombre        string `json:"nombre"`
+	Apellido      string `json:"apellido"`
+	Correo        string `json:"correo"`
+	Telefono      string `json:"telefono"`
+	Rol           int    `json:"rol"`
 }
 
 func (s *AuthService) Login(ctx context.Context, correo, password string) (*ClienteData, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT c.ID_CLIENTE, c.NOMBRE, c.APELLIDO, c.TELEFONO, u.CONTRASENA
+		`SELECT c.ID_CLIENTE, c.NOMBRE, c.APELLIDO, c.TELEFONO, u.CONTRASENA, u.ROL, IFNULL(u.ID_VETERINARIO, 0)
 		 FROM USUARIOS u
 		 JOIN CLIENTES c ON u.ID_CLIENTE = c.ID_CLIENTE
 		 WHERE u.CORREO = ?`,
 		correo,
 	)
 
-	var idCliente int64
+	var idCliente, idVet int64
 	var nombre, apellido, telefono, hash string
-	if err := row.Scan(&idCliente, &nombre, &apellido, &telefono, &hash); err != nil {
+	var rol int
+	if err := row.Scan(&idCliente, &nombre, &apellido, &telefono, &hash, &rol, &idVet); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
@@ -47,11 +50,13 @@ func (s *AuthService) Login(ctx context.Context, correo, password string) (*Clie
 	}
 
 	return &ClienteData{
-		IDCliente: idCliente,
-		Nombre:    nombre,
-		Apellido:  apellido,
-		Correo:    correo,
-		Telefono:  telefono,
+		IDCliente:     idCliente,
+		IDVeterinario: idVet,
+		Nombre:        nombre,
+		Apellido:      apellido,
+		Correo:        correo,
+		Telefono:      telefono,
+		Rol:           rol,
 	}, nil
 }
 

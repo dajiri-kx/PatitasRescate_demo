@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Citas — Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.2/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="../../../shared/css/admin.css" rel="stylesheet">
+</head>
+<body>
+    <script src="../../../shared/js/api.js"></script>
+    <script src="../../../shared/js/auth.js"></script>
+    <script src="../../../shared/js/admin-layout.js"></script>
+    <script>
+        renderAdminLayout('citas');
+        const content = document.getElementById('admin-content');
+
+        const estados = ['Activa','Completada','Cancelada'];
+
+        async function loadData() {
+            content.innerHTML = `
+                <div class="page-header">
+                    <div><h2><i class="bi bi-calendar-check text-amber"></i> Citas</h2>
+                    <p class="muted">Gestión de citas agendadas</p></div>
+                </div>
+                <div id="admin-alert" class="admin-alert" style="display:none;"></div>
+                <div class="admin-table-wrap"><table class="admin-table">
+                    <thead><tr><th>ID</th><th>Fecha</th><th>Cliente</th><th>Mascota</th><th>Veterinario</th><th>Total</th><th>Estado</th><th style="text-align:right;">Acción</th></tr></thead>
+                    <tbody id="tbody">
+                        <tr><td colspan="8" class="text-muted" style="text-align:center;">Cargando...</td></tr>
+                    </tbody>
+                </table></div>`;
+
+            try {
+                const res = await apiGet('/admin/citas');
+                const tbody = document.getElementById('tbody');
+                if (!res.data.length) { tbody.innerHTML = '<tr><td colspan="8" class="text-muted" style="text-align:center;">Sin citas</td></tr>'; return; }
+                tbody.innerHTML = res.data.map(c => {
+                    const estadoClass = (c.ESTADO || 'Activa').toLowerCase();
+                    const selectHtml = estados.map(e =>
+                        `<option value="${e}" ${e === c.ESTADO ? 'selected' : ''}>${e}</option>`
+                    ).join('');
+                    return `<tr>
+                        <td>${c.ID_CITA}</td>
+                        <td>${formatDate(c.FECHA_CITA)}</td>
+                        <td class="text-white">${esc(c.CLIENTE_NOMBRE || '-')}</td>
+                        <td>${esc(c.MASCOTA_NOMBRE || '-')}</td>
+                        <td>${esc(c.VETERINARIO_NOMBRE || '-')}</td>
+                        <td class="text-amber">₡${Number(c.TOTAL || 0).toLocaleString('es-CR')}</td>
+                        <td><span class="estado-badge ${estadoClass}">${esc(c.ESTADO || 'Activa')}</span></td>
+                        <td><div class="action-btns">
+                            <select class="input-admin input-sm" onchange="updateEstado(${c.ID_CITA}, this.value)" style="width:auto;min-width:110px;">${selectHtml}</select>
+                        </div></td>
+                    </tr>`;
+                }).join('');
+            } catch (e) { showAlert(e.message, 'error'); }
+        }
+
+        async function updateEstado(id, estado) {
+            try {
+                await apiPost('/admin/citas/estado', { id, estado });
+                loadData();
+                showAlert('Estado actualizado.', 'success');
+            } catch (e) { showAlert(e.message, 'error'); }
+        }
+
+        function formatDate(d) {
+            if (!d) return '-';
+            const dt = new Date(d);
+            return dt.toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function esc(s) { return escapeHtml(String(s)); }
+        loadData();
+    </script>
+</body>
+</html>

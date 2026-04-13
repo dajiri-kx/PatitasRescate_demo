@@ -38,6 +38,8 @@
         </div>
     </div>
 
+    <footer id="app-footer"></footer>
+
     <script src="../../../shared/js/api.js"></script>
     <script src="../../../shared/js/auth.js"></script>
     <script src="../../../shared/js/components.js"></script>
@@ -62,7 +64,13 @@
                     password: document.getElementById('password').value,
                 });
                 Auth.save(res.data);
-                window.location.href = nav('/dashboard/');
+                if (res.data.rol === 0) {
+                    window.location.href = nav('/admin/');
+                } else if (res.data.rol === 2) {
+                    window.location.href = nav('/veterinario/');
+                } else {
+                    window.location.href = nav('/dashboard/');
+                }
             } catch (err) {
                 alertBox.innerHTML = `<div class="alert alert-danger">${escapeHtml(err.message)}</div>`;
             } finally {

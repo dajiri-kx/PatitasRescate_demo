@@ -4,6 +4,38 @@ document.addEventListener('DOMContentLoaded', function () {
     const distritoSelect = document.getElementById('distrito');
     const alertBox = document.getElementById('alert-box');
 
+    // --- Input filters: block non-digits on identificacion & telefono ---
+    const idInput = document.getElementById('identificacion');
+    const telInput = document.getElementById('telefono');
+    [idInput, telInput].forEach(el => {
+        el.addEventListener('input', () => { el.value = el.value.replace(/\D/g, ''); });
+    });
+
+    // --- Password requirements live feedback ---
+    const pwInput = document.getElementById('password');
+    const pwReq = document.getElementById('pw-requirements');
+    const rules = [
+        { test: v => v.length >= 8,          label: 'Mínimo 8 caracteres' },
+        { test: v => /[A-Z]/.test(v),        label: 'Una letra mayúscula' },
+        { test: v => /[a-z]/.test(v),        label: 'Una letra minúscula' },
+        { test: v => /\d/.test(v),            label: 'Un número' },
+        { test: v => /[^A-Za-z0-9]/.test(v), label: 'Un carácter especial (!@#$...)' },
+    ];
+
+    function renderPwRules() {
+        const val = pwInput.value;
+        pwReq.innerHTML = rules.map(r => {
+            const ok = r.test(val);
+            return `<span style="color:${ok ? '#198754' : '#6c757d'};">${ok ? '✓' : '○'} ${r.label}</span>`;
+        }).join('<br>');
+    }
+    renderPwRules();
+    pwInput.addEventListener('input', renderPwRules);
+
+    function passwordIsValid() {
+        return rules.every(r => r.test(pwInput.value));
+    }
+
     // Bootstrap validation
     const forms = document.querySelectorAll('.needs-validation');
     forms.forEach(function (form) {
@@ -73,7 +105,20 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const form = e.target;
+        form.classList.add('was-validated');
         if (!form.checkValidity()) return;
+
+        // Custom checks beyond HTML5
+        const errors = [];
+        if (!/^\d{9}$/.test(idInput.value)) errors.push('La identificación debe ser exactamente 9 dígitos.');
+        if (!/^\d{8}$/.test(telInput.value)) errors.push('El teléfono debe ser exactamente 8 dígitos.');
+        if (!passwordIsValid()) errors.push('La contraseña no cumple todos los requisitos.');
+        if (pwInput.value !== document.getElementById('confirmPassword').value) errors.push('Las contraseñas no coinciden.');
+
+        if (errors.length) {
+            alertBox.innerHTML = errors.map(m => `<div class="alert alert-danger py-2">${m}</div>`).join('');
+            return;
+        }
 
         alertBox.innerHTML = '';
         const btn = document.getElementById('btnSubmit');

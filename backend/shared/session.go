@@ -12,12 +12,21 @@ var Store *sessions.CookieStore
 
 const sessionName = "patitas_session"
 
+// Roles: 0 = Admin, 1 = Cliente, 2 = Veterinario
+const (
+	RolAdmin       = 0
+	RolCliente     = 1
+	RolVeterinario = 2
+)
+
 type ClienteSession struct {
-	IDCliente int64
-	Nombre    string
-	Apellido  string
-	Correo    string
-	Telefono  string
+	IDCliente     int64
+	IDVeterinario int64
+	Nombre        string
+	Apellido      string
+	Correo        string
+	Telefono      string
+	Rol           int
 }
 
 func InitSessionStore() {
@@ -73,6 +82,36 @@ func RequireAuth(w http.ResponseWriter, r *http.Request) *ClienteSession {
 	c := GetCliente(r)
 	if c == nil {
 		JSONErr(w, http.StatusUnauthorized, "No autenticado.")
+		return nil
+	}
+	return c
+}
+
+func RequireAdmin(w http.ResponseWriter, r *http.Request) *ClienteSession {
+	c := GetCliente(r)
+	if c == nil {
+		JSONErr(w, http.StatusUnauthorized, "No autenticado.")
+		return nil
+	}
+	if c.Rol != RolAdmin {
+		JSONErr(w, http.StatusForbidden, "Acceso denegado.")
+		return nil
+	}
+	return c
+}
+
+func RequireVeterinario(w http.ResponseWriter, r *http.Request) *ClienteSession {
+	c := GetCliente(r)
+	if c == nil {
+		JSONErr(w, http.StatusUnauthorized, "No autenticado.")
+		return nil
+	}
+	if c.Rol != RolVeterinario {
+		JSONErr(w, http.StatusForbidden, "Acceso denegado.")
+		return nil
+	}
+	if c.IDVeterinario == 0 {
+		JSONErr(w, http.StatusForbidden, "Cuenta de veterinario no vinculada.")
 		return nil
 	}
 	return c

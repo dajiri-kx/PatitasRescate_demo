@@ -16,9 +16,13 @@ async function apiFetch(featurePath, options = {}) {
 
     if (!res.ok) {
         if (res.status === 401) {
+            const wasLoggedIn = Auth.isLoggedIn();
             Auth.clear();
-            window.location.href = CONFIG.FRONTEND_BASE + '/auth/login/';
-            return;
+            if (wasLoggedIn) {
+                window.location.href = CONFIG.FRONTEND_BASE + '/auth/login/';
+                return;
+            }
+            throw new Error(data.error || 'Credenciales incorrectas');
         }
         throw new Error(data.error || 'Error desconocido');
     }

@@ -40,8 +40,15 @@
             </div>
 
             <div class="mb-3">
+                <label for="categoria" class="form-label">Categoría de Servicio:</label>
+                <select id="categoria" class="form-select" required>
+                    <option value="">-- Elige una categoría --</option>
+                </select>
+            </div>
+
+            <div class="mb-3" id="servicios-section" style="display:none;">
                 <label class="form-label" id="servicios-label">Selecciona los Servicios:</label>
-                <div id="servicios-container">Cargando servicios...</div>
+                <div id="servicios-container"></div>
             </div>
 
             <div class="mb-3">
@@ -57,6 +64,19 @@
     </div>
 
     <footer id="app-footer"></footer>
+
+    <!-- Modal de resultado -->
+    <div class="modal fade" id="resultModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header" id="resultModalHeader">
+                    <h5 class="modal-title" id="resultModalTitle"></h5>
+                </div>
+                <div class="modal-body text-center" id="resultModalBody"></div>
+                <div class="modal-footer justify-content-center" id="resultModalFooter"></div>
+            </div>
+        </div>
+    </div>
 
     <script src="../../../shared/js/api.js"></script>
     <script src="../../../shared/js/auth.js"></script>

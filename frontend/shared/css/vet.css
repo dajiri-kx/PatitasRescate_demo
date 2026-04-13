@@ -1,0 +1,23 @@
+/* ===== Vet Portal Overrides — Patitas al Rescate ===== */
+/* Imports admin.css base, then overrides accent colors to teal/green */
+
+body.vet-body-page {
+    --admin-accent: #26a69a;
+    --admin-accent2: #00897b;
+}
+
+.vet-body-page .sidebar-logo i { color: var(--admin-accent); }
+.vet-body-page .sidebar-link.active { color: var(--admin-accent); border-left-color: var(--admin-accent); background: rgba(38,166,154,.08); }
+
+/* Dashboard cards specific colors */
+.vet-body-page .dash-card.teal { border-top: 3px solid #26a69a; }
+.vet-body-page .dash-card.teal .dash-icon { color: #26a69a; }
+.vet-body-page .dash-card.blue { border-top: 3px solid #42a5f5; }
+.vet-body-page .dash-card.blue .dash-icon { color: #42a5f5; }
+.vet-body-page .dash-card.green { border-top: 3px solid #4caf50; }
+.vet-body-page .dash-card.green .dash-icon { color: #4caf50; }
+
+/* Status badges */
+.status-activa { color: #4caf50; font-weight: 600; }
+.status-completada { color: #42a5f5; font-weight: 600; }
+.status-cancelada { color: #f44336; font-weight: 600; }

@@ -25,18 +25,38 @@ function renderHeader() {
            <li class="nav-item"><a class="nav-link px-3 py-2 rounded" href="${fb}/ubicacion/">Ubicación</a></li>
            <li class="nav-item"><a class="nav-link px-3 py-2 rounded" href="${fb}/contactenos/">Contáctenos</a></li>`;
 
-    /* --- Right‑side auth / user block --- */
-    const userDropdown = (id) => `
+    const userDropdown = (id) => {
+        const user = Auth.get();
+        const isAdmin = user && user.rol === 0;
+        const isVet = user && user.rol === 2;
+        const adminItems = isAdmin
+            ? `<li><a class="dropdown-item text-white" href="${fb}/admin/"><i class="bi bi-shield-lock me-1"></i>Panel Admin</a></li>
+               <li><hr class="dropdown-divider"></li>`
+            : '';
+        const vetItems = isVet
+            ? `<li><a class="dropdown-item text-white" href="${fb}/veterinario/"><i class="bi bi-person-badge me-1"></i>Portal Veterinario</a></li>
+               <li><hr class="dropdown-divider"></li>`
+            : '';
+        const badge = isAdmin
+            ? ' <span class="badge bg-danger ms-1" style="font-size:10px;">Admin</span>'
+            : isVet
+            ? ' <span class="badge ms-1" style="font-size:10px;background:#26a69a;">Vet</span>'
+            : '';
+        const nameColor = 'color:white;';
+        return `
         <div class="dropdown text-end">
-            <button class="btn btn-outline-light dropdown-toggle" type="button" id="${id}" data-bs-toggle="dropdown" aria-expanded="false">
-                <i class="bi bi-person-circle me-1"></i>${escapeHtml(nombre)}
+            <button class="btn btn-outline-light dropdown-toggle" type="button" id="${id}" data-bs-toggle="dropdown" aria-expanded="false" style="${nameColor}">
+                <i class="bi bi-person-circle me-1"></i>${escapeHtml(nombre)}${badge}
             </button>
             <ul class="dropdown-menu dropdown-menu-end" style="background-color:#ff8c00;">
+                ${adminItems}
+                ${vetItems}
                 <li><a class="dropdown-item text-white" href="${fb}/perfil/"><i class="bi bi-person me-1"></i>Mi Perfil</a></li>
                 <li><hr class="dropdown-divider"></li>
                 <li><a class="dropdown-item text-white" href="#" onclick="doLogout()"><i class="bi bi-box-arrow-right me-1"></i>Cerrar Sesión</a></li>
             </ul>
         </div>`;
+    };
 
     const authBlockMobile = loggedIn
         ? userDropdown('userDropdownMobile')
@@ -72,7 +92,9 @@ function renderHeader() {
 }
 
 function renderFooter() {
-    document.getElementById('app-footer').innerHTML = `
+    const el = document.getElementById('app-footer');
+    if (!el) return;
+    el.innerHTML = `
     <div class="container">
         <footer class="py-2 py-md-5">
             <div class="d-flex flex-column flex-sm-row justify-content-between pt-2 border-top">
