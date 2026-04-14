@@ -102,8 +102,8 @@ func (s *CheckoutService) CrearSesion(ctx context.Context, idFactura, idCliente 
 				Quantity: stripe.Int64(1),
 			},
 		},
-		SuccessURL: stripe.String(baseURL + "/features/pago-felicidades/?session_id={CHECKOUT_SESSION_ID}"),
-		CancelURL:  stripe.String(baseURL + "/features/dashboard/"),
+		SuccessURL: stripe.String(baseURL + "/frontend/features/pago-felicidades/?session_id={CHECKOUT_SESSION_ID}"),
+		CancelURL:  stripe.String(baseURL + "/frontend/features/dashboard/"),
 	}
 
 	sess, err := session.New(params)
