@@ -7,7 +7,7 @@
 
 # 🐾 Patitas al Rescate
 
-> **Sistema integral de gestión para clínica veterinaria** — Plataforma web full-stack que permite a dueños de mascotas agendar citas, gestionar el historial de sus mascotas y pagar facturas en línea, con portales dedicados para veterinarios y administradores.
+> **Sistema integral de gestión para clínica veterinaria** — Plataforma web full-stack que permite a dueños de mascotas agendar citas, gestionar el historial de sus mascotas y pagar facturas en línea, con portales dedicados para veterinarios y administradores. Desplegado en: https://patitasalrescate.duckdns.org/
 
 ---
 
